@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TRYN — Email Rephraser</title>
+<style>
+:root {
+  --bg:#0b0b0a; --bg2:#141412; --bg3:#1e1d1a; --bg4:#252320;
+  --fg:#f0ece4; --fg2:#908b83; --fg3:#3a3835;
+  --gold:#b8955a; --golda:rgba(184,149,90,.10); --goldb:rgba(184,149,90,.22);
+  --brd:rgba(255,255,255,.06); --brd2:rgba(255,255,255,.11);
+  --green:#4caf7d; --greena:rgba(76,175,125,.12);
+  --ease:cubic-bezier(.16,1,.3,1);
+  --r:10px;
+}
+[data-theme="light"] {
+  --bg:#f4f1eb; --bg2:#eceae2; --bg3:#e3e0d8; --bg4:#dedad1;
+  --fg:#0f0f0d; --fg2:#5a5650; --fg3:#bbb6b0;
+  --brd:rgba(0,0,0,.07); --brd2:rgba(0,0,0,.12);
+  --golda:rgba(184,149,90,.08); --goldb:rgba(184,149,90,.18);
+  --greena:rgba(76,175,125,.10);
+}
+
+*,*::before,*::after { margin:0; padding:0; box-sizing:border-box }
+html { font-size:16px; }
+body {
+  background:var(--bg); color:var(--fg);
+  font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;
+  min-height:100vh; transition:background .4s,color .4s;
+  line-height:1.6;
+}
+
+/* HEADER */
+header {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:1.25rem 2rem;
+  border-bottom:1px solid var(--brd);
+  position:sticky; top:0; z-index:100;
+  background:var(--bg); backdrop-filter:blur(12px);
+}
+.logo {
+  font-size:1.35rem; font-weight:700; letter-spacing:.12em;
+  color:var(--gold); text-decoration:none; text-transform:uppercase;
+}
+.logo span { color:var(--fg2); font-weight:300; font-size:.85rem; margin-left:.5rem; letter-spacing:.04em; }
+.header-actions { display:flex; gap:.75rem; align-items:center; }
+
+/* BUTTONS */
+.btn {
+  display:inline-flex; align-items:center; gap:.4rem;
+  padding:.45rem .9rem; border-radius:6px; border:1px solid var(--brd2);
+  background:transparent; color:var(--fg2); font-size:.8rem;
+  cursor:pointer; transition:all .2s; font-family:inherit; letter-spacing:.03em;
+}
+.btn:hover { border-color:var(--gold); color:var(--gold); background:var(--golda); }
+.btn-primary {
+  background:var(--gold); color:#0b0b0a; border-color:var(--gold);
+  font-weight:600; padding:.6rem 1.4rem; font-size:.85rem;
+}
+.btn-primary:hover { background:#c9a468; border-color:#c9a468; color:#0b0b0a; }
+.btn-primary:disabled { opacity:.4; cursor:not-allowed; }
+.btn-sm { padding:.3rem .65rem; font-size:.75rem; }
+.btn-icon { padding:.45rem; }
+
+/* MAIN LAYOUT */
+main { max-width:900px; margin:0 auto; padding:2.5rem 1.5rem 4rem; }
+
+.page-title {
+  text-align:center; margin-bottom:2.5rem;
+}
+.page-title h1 {
+  font-size:2rem; font-weight:700; letter-spacing:.05em;
+  color:var(--fg);
+}
+.page-title p {
+  margin-top:.5rem; color:var(--fg2); font-size:.9rem;
+}
+
+/* API KEY BANNER */
+.api-banner {
+  background:var(--bg2); border:1px solid var(--brd2);
+  border-radius:var(--r); padding:1rem 1.25rem;
+  margin-bottom:1.75rem; display:flex; gap:.75rem; align-items:center;
+}
+.api-banner.hidden { display:none; }
+.api-banner label { color:var(--fg2); font-size:.82rem; white-space:nowrap; }
+.api-key-input {
+  flex:1; background:var(--bg3); border:1px solid var(--brd2);
+  color:var(--fg); border-radius:6px; padding:.4rem .75rem;
+  font-size:.85rem; font-family:monospace; outline:none;
+  transition:border-color .2s;
+}
+.api-key-input:focus { border-color:var(--gold); }
+.api-key-input::placeholder { color:var(--fg3); }
+
+/* CARD */
+.card {
+  background:var(--bg2); border:1px solid var(--brd);
+  border-radius:var(--r); padding:1.5rem;
+  margin-bottom:1.25rem;
+}
+.card-label {
+  font-size:.75rem; font-weight:600; letter-spacing:.1em;
+  text-transform:uppercase; color:var(--fg2); margin-bottom:.75rem;
+}
+
+/* TEXTAREA */
+.input-area {
+  width:100%; min-height:130px; resize:vertical;
+  background:var(--bg3); border:1px solid var(--brd2);
+  color:var(--fg); border-radius:8px; padding:1rem;
+  font-size:.9rem; font-family:inherit; line-height:1.65;
+  outline:none; transition:border-color .2s;
+}
+.input-area:focus { border-color:var(--gold); }
+.input-area::placeholder { color:var(--fg3); }
+.char-count {
+  text-align:right; font-size:.75rem; color:var(--fg3); margin-top:.4rem;
+}
+
+/* TONE SELECTOR */
+.tones {
+  display:flex; flex-wrap:wrap; gap:.5rem; margin-top:.5rem;
+}
+.tone-btn {
+  padding:.4rem .9rem; border-radius:20px;
+  border:1px solid var(--brd2); background:transparent;
+  color:var(--fg2); font-size:.8rem; cursor:pointer;
+  font-family:inherit; transition:all .18s; letter-spacing:.02em;
+}
+.tone-btn:hover { border-color:var(--gold); color:var(--gold); }
+.tone-btn.active {
+  background:var(--goldb); border-color:var(--gold);
+  color:var(--gold); font-weight:600;
+}
+
+/* VARIANTS SELECTOR */
+.variants-row {
+  display:flex; align-items:center; gap:.75rem; flex-wrap:wrap;
+  margin-top:.5rem;
+}
+.variants-row label { color:var(--fg2); font-size:.82rem; }
+.variant-num {
+  width:2rem; height:2rem; border-radius:50%;
+  border:1px solid var(--brd2); background:transparent;
+  color:var(--fg2); font-size:.82rem; cursor:pointer;
+  font-family:inherit; transition:all .18s;
+  display:flex; align-items:center; justify-content:center;
+}
+.variant-num:hover { border-color:var(--gold); color:var(--gold); }
+.variant-num.active {
+  background:var(--goldb); border-color:var(--gold);
+  color:var(--gold); font-weight:700;
+}
+
+/* ACTION ROW */
+.action-row {
+  display:flex; align-items:center; justify-content:space-between;
+  margin-top:1.25rem; flex-wrap:wrap; gap:.75rem;
+}
+
+/* LOADING */
+.loading-bar {
+  height:2px; background:var(--brd); border-radius:2px;
+  overflow:hidden; margin:1rem 0; display:none;
+}
+.loading-bar.active { display:block; }
+.loading-bar-fill {
+  height:100%; width:0%; background:var(--gold);
+  animation:loadpulse 1.8s ease-in-out infinite;
+}
+@keyframes loadpulse {
+  0%{width:0%;margin-left:0}
+  50%{width:60%;margin-left:20%}
+  100%{width:0%;margin-left:100%}
+}
+
+/* RESULTS */
+.results { display:flex; flex-direction:column; gap:1rem; }
+.result-card {
+  background:var(--bg2); border:1px solid var(--brd);
+  border-radius:var(--r); padding:1.25rem 1.5rem;
+  position:relative; transition:border-color .2s;
+  animation:fadein .35s var(--ease) both;
+}
+.result-card:hover { border-color:var(--brd2); }
+@keyframes fadein {
+  from { opacity:0; transform:translateY(8px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+.result-card:nth-child(2) { animation-delay:.07s; }
+.result-card:nth-child(3) { animation-delay:.14s; }
+.result-header {
+  display:flex; align-items:center; justify-content:space-between;
+  margin-bottom:.85rem;
+}
+.result-label {
+  font-size:.72rem; font-weight:700; letter-spacing:.1em;
+  text-transform:uppercase; color:var(--gold);
+}
+.result-actions { display:flex; gap:.4rem; }
+.result-body {
+  color:var(--fg); font-size:.9rem; line-height:1.75;
+  white-space:pre-wrap;
+}
+
+/* COPY FEEDBACK */
+.copied-badge {
+  font-size:.7rem; color:var(--green); background:var(--greena);
+  padding:.15rem .5rem; border-radius:4px; border:1px solid var(--green);
+  opacity:0; transition:opacity .2s; pointer-events:none;
+}
+.copied-badge.show { opacity:1; }
+
+/* EMPTY STATE */
+.empty-state {
+  text-align:center; padding:3rem 1rem; color:var(--fg3);
+}
+.empty-state .icon {
+  font-size:2.5rem; margin-bottom:1rem; opacity:.4;
+}
+.empty-state p { font-size:.85rem; }
+
+/* ERROR */
+.error-msg {
+  background:rgba(220,60,60,.1); border:1px solid rgba(220,60,60,.3);
+  color:#e07070; border-radius:8px; padding:.85rem 1.1rem;
+  font-size:.85rem; margin-bottom:1rem; display:none;
+}
+.error-msg.show { display:block; }
+
+/* THEME TOGGLE */
+.theme-toggle { position:relative; }
+.theme-toggle input { display:none; }
+.theme-toggle label {
+  display:flex; align-items:center; gap:.4rem;
+  cursor:pointer; color:var(--fg2); font-size:.8rem;
+  border:1px solid var(--brd2); border-radius:20px; padding:.4rem .75rem;
+  transition:all .2s;
+}
+.theme-toggle label:hover { border-color:var(--gold); color:var(--gold); }
+
+/* DIVIDER */
+.divider {
+  height:1px; background:var(--brd); margin:1.5rem 0;
+}
+
+/* FOOTER */
+footer {
+  text-align:center; padding:1.5rem;
+  color:var(--fg3); font-size:.75rem;
+  border-top:1px solid var(--brd);
+}
+footer a { color:var(--gold); text-decoration:none; }
+
+/* RESPONSIVE */
+@media (max-width:600px) {
+  header { padding:1rem; }
+  main { padding:1.5rem 1rem 3rem; }
+  .page-title h1 { font-size:1.5rem; }
+  .api-banner { flex-direction:column; align-items:flex-start; gap:.5rem; }
+  .api-banner label { white-space:normal; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <a href="index.html" class="logo">TRYN <span>Email Rephraser</span></a>
+  <div class="header-actions">
+    <button class="btn btn-sm" id="apiToggle">API Key</button>
+    <div class="theme-toggle">
+      <input type="checkbox" id="themeSwitch">
+      <label for="themeSwitch" id="themeLabel">☀ Light</label>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="page-title">
+    <h1>TRYN</h1>
+    <p>Paste any text — get polished email options instantly</p>
+  </div>
+
+  <!-- API Key Banner -->
+  <div class="api-banner" id="apiBanner">
+    <label for="apiKeyField">Claude API Key</label>
+    <input type="password" id="apiKeyField" class="api-key-input"
+      placeholder="sk-ant-api03-..." autocomplete="off">
+    <button class="btn btn-sm" id="saveKey">Save</button>
+    <button class="btn btn-sm" id="clearKey">Clear</button>
+  </div>
+
+  <!-- Input -->
+  <div class="card">
+    <div class="card-label">Your Text</div>
+    <textarea class="input-area" id="inputText"
+      placeholder="Type or paste your draft, notes, or rough message here…"
+      maxlength="3000"></textarea>
+    <div class="char-count"><span id="charCount">0</span> / 3000</div>
+  </div>
+
+  <!-- Tone -->
+  <div class="card">
+    <div class="card-label">Tone</div>
+    <div class="tones" id="tones">
+      <button class="tone-btn active" data-tone="Professional">Professional</button>
+      <button class="tone-btn" data-tone="Formal">Formal</button>
+      <button class="tone-btn" data-tone="Friendly">Friendly</button>
+      <button class="tone-btn" data-tone="Concise">Concise</button>
+      <button class="tone-btn" data-tone="Persuasive">Persuasive</button>
+      <button class="tone-btn" data-tone="Polite">Polite &amp; Diplomatic</button>
+      <button class="tone-btn" data-tone="Casual">Casual</button>
+      <button class="tone-btn" data-tone="Empathetic">Empathetic</button>
+    </div>
+  </div>
+
+  <!-- Options Row -->
+  <div class="card">
+    <div class="card-label">Variants to Generate</div>
+    <div class="variants-row">
+      <label>How many options?</label>
+      <button class="variant-num" data-n="1">1</button>
+      <button class="variant-num active" data-n="2">2</button>
+      <button class="variant-num" data-n="3">3</button>
+    </div>
+  </div>
+
+  <!-- Action -->
+  <div class="action-row">
+    <span style="font-size:.8rem;color:var(--fg3)">Powered by Claude AI</span>
+    <button class="btn btn-primary" id="rephraseBtn">Rephrase →</button>
+  </div>
+
+  <!-- Loading -->
+  <div class="loading-bar" id="loadingBar">
+    <div class="loading-bar-fill"></div>
+  </div>
+
+  <!-- Error -->
+  <div class="error-msg" id="errorMsg"></div>
+
+  <!-- Results -->
+  <div id="resultsArea">
+    <div class="empty-state" id="emptyState">
+      <div class="icon">✦</div>
+      <p>Your rephrased email options will appear here</p>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  TRYN · <a href="index.html">Back to Portfolio</a>
+</footer>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────
+let selectedTone = 'Professional';
+let selectedVariants = 2;
+const API_URL = 'https://api.anthropic.com/v1/messages';
+
+// ── Theme ──────────────────────────────────────────────────────────────
+const themeSwitch = document.getElementById('themeSwitch');
+const themeLabel  = document.getElementById('themeLabel');
+
+function applyTheme(light) {
+  document.documentElement.setAttribute('data-theme', light ? 'light' : 'dark');
+  themeLabel.textContent = light ? '☾ Dark' : '☀ Light';
+  themeSwitch.checked = light;
+  localStorage.setItem('tryn-theme', light ? 'light' : 'dark');
+}
+themeSwitch.addEventListener('change', () => applyTheme(themeSwitch.checked));
+applyTheme(localStorage.getItem('tryn-theme') === 'light');
+
+// ── API Key ────────────────────────────────────────────────────────────
+const apiBanner    = document.getElementById('apiBanner');
+const apiKeyField  = document.getElementById('apiKeyField');
+const apiToggle    = document.getElementById('apiToggle');
+const saveKeyBtn   = document.getElementById('saveKey');
+const clearKeyBtn  = document.getElementById('clearKey');
+
+function getKey() { return localStorage.getItem('tryn-api-key') || ''; }
+
+function setKey(k) {
+  if (k) localStorage.setItem('tryn-api-key', k);
+  else localStorage.removeItem('tryn-api-key');
+}
+
+// Pre-fill saved key
+apiKeyField.value = getKey();
+if (!getKey()) apiBanner.classList.remove('hidden');
+else apiBanner.classList.add('hidden');
+
+apiToggle.addEventListener('click', () => {
+  apiBanner.classList.toggle('hidden');
+});
+saveKeyBtn.addEventListener('click', () => {
+  setKey(apiKeyField.value.trim());
+  apiBanner.classList.add('hidden');
+});
+clearKeyBtn.addEventListener('click', () => {
+  setKey('');
+  apiKeyField.value = '';
+});
+
+// ── Char count ─────────────────────────────────────────────────────────
+const inputText = document.getElementById('inputText');
+const charCount = document.getElementById('charCount');
+inputText.addEventListener('input', () => {
+  charCount.textContent = inputText.value.length;
+});
+
+// ── Tone selection ─────────────────────────────────────────────────────
+document.getElementById('tones').addEventListener('click', e => {
+  if (!e.target.classList.contains('tone-btn')) return;
+  document.querySelectorAll('.tone-btn').forEach(b => b.classList.remove('active'));
+  e.target.classList.add('active');
+  selectedTone = e.target.dataset.tone;
+});
+
+// ── Variant count selection ────────────────────────────────────────────
+document.querySelectorAll('.variant-num').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.variant-num').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    selectedVariants = parseInt(btn.dataset.n);
+  });
+});
+
+// ── Rephrase ───────────────────────────────────────────────────────────
+const rephraseBtn = document.getElementById('rephraseBtn');
+const loadingBar  = document.getElementById('loadingBar');
+const errorMsg    = document.getElementById('errorMsg');
+const resultsArea = document.getElementById('resultsArea');
+const emptyState  = document.getElementById('emptyState');
+
+rephraseBtn.addEventListener('click', rephrase);
+inputText.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') rephrase();
+});
+
+async function rephrase() {
+  const text = inputText.value.trim();
+  if (!text) { showError('Please enter some text first.'); return; }
+
+  const key = getKey();
+  if (!key) {
+    apiBanner.classList.remove('hidden');
+    showError('Please enter your Claude API key above.');
+    return;
+  }
+
+  hideError();
+  setLoading(true);
+  resultsArea.innerHTML = '';
+
+  const prompt = buildPrompt(text, selectedTone, selectedVariants);
+
+  try {
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-calls': 'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1500,
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err?.error?.message || `API error ${res.status}`);
+    }
+
+    const data = await res.json();
+    const raw = data.content?.[0]?.text || '';
+    const variants = parseVariants(raw, selectedVariants);
+    renderResults(variants);
+  } catch (err) {
+    showError(err.message || 'Something went wrong. Check your API key and try again.');
+  } finally {
+    setLoading(false);
+  }
+}
+
+function buildPrompt(text, tone, count) {
+  return `You are an expert email writer. Rephrase the following text into ${count} distinct email variant${count > 1 ? 's' : ''} with a ${tone} tone.
+
+Rules:
+- Each variant should be polished, clear, and ready to send
+- Preserve the core meaning and intent
+- Make it sound natural and human
+- Vary the structure/approach between variants if generating multiple
+- Output ONLY the email variants, no explanations
+${count > 1 ? `- Separate each variant with exactly: ---VARIANT---` : ''}
+
+Text to rephrase:
+"""
+${text}
+"""
+
+${count > 1 ? `Provide exactly ${count} variants separated by ---VARIANT---` : 'Provide the rephrased email:'}`;
+}
+
+function parseVariants(raw, count) {
+  if (count === 1) return [raw.trim()];
+  const parts = raw.split(/---VARIANT---/i).map(s => s.trim()).filter(Boolean);
+  if (parts.length >= count) return parts.slice(0, count);
+  // Fallback: split by double newline if separator wasn't used
+  const fallback = raw.split(/\n{3,}/).map(s => s.trim()).filter(Boolean);
+  if (fallback.length >= count) return fallback.slice(0, count);
+  return [raw.trim()]; // last resort: single block
+}
+
+function renderResults(variants) {
+  resultsArea.innerHTML = '';
+  if (!variants.length) {
+    resultsArea.innerHTML = '<div class="empty-state"><div class="icon">✦</div><p>No results returned.</p></div>';
+    return;
+  }
+
+  const container = document.createElement('div');
+  container.className = 'results';
+
+  variants.forEach((v, i) => {
+    const card = document.createElement('div');
+    card.className = 'result-card';
+    card.style.animationDelay = `${i * 0.07}s`;
+
+    const label = variants.length > 1 ? `Option ${i + 1}` : 'Rephrased';
+
+    card.innerHTML = `
+      <div class="result-header">
+        <span class="result-label">${label} · ${selectedTone}</span>
+        <div class="result-actions">
+          <span class="copied-badge" id="badge-${i}">Copied!</span>
+          <button class="btn btn-sm" onclick="copyText(${i})">Copy</button>
+          <button class="btn btn-sm" onclick="useAsInput(${i})">Use as Input</button>
+        </div>
+      </div>
+      <div class="result-body" id="result-body-${i}">${escHtml(v)}</div>
+    `;
+    container.appendChild(card);
+  });
+
+  resultsArea.appendChild(container);
+  window._results = variants;
+}
+
+function copyText(i) {
+  const text = window._results?.[i] || '';
+  navigator.clipboard.writeText(text).then(() => {
+    const badge = document.getElementById(`badge-${i}`);
+    badge.classList.add('show');
+    setTimeout(() => badge.classList.remove('show'), 2000);
+  });
+}
+
+function useAsInput(i) {
+  const text = window._results?.[i] || '';
+  inputText.value = text;
+  charCount.textContent = text.length;
+  inputText.scrollIntoView({ behavior:'smooth', block:'center' });
+  inputText.focus();
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────
+function setLoading(on) {
+  rephraseBtn.disabled = on;
+  rephraseBtn.textContent = on ? 'Rephrasing…' : 'Rephrase →';
+  loadingBar.classList.toggle('active', on);
+}
+
+function showError(msg) {
+  errorMsg.textContent = msg;
+  errorMsg.classList.add('show');
+}
+
+function hideError() {
+  errorMsg.classList.remove('show');
+}
+
+function escHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+</script>
+</body>
+</html>

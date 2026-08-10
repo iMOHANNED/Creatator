@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ASCIIFY — Image to ASCII Art</title>
+<style>
+:root {
+  --bg:#0b0b0a; --bg2:#141412; --bg3:#1e1d1a; --bg4:#252320;
+  --fg:#f0ece4; --fg2:#908b83; --fg3:#3a3835;
+  --gold:#b8955a; --golda:rgba(184,149,90,.10); --goldb:rgba(184,149,90,.22);
+  --brd:rgba(255,255,255,.06); --brd2:rgba(255,255,255,.11);
+  --green:#4caf7d; --greena:rgba(76,175,125,.12);
+  --ease:cubic-bezier(.16,1,.3,1);
+  --r:10px;
+}
+[data-theme="light"] {
+  --bg:#f4f1eb; --bg2:#eceae2; --bg3:#e3e0d8; --bg4:#dedad1;
+  --fg:#0f0f0d; --fg2:#5a5650; --fg3:#bbb6b0;
+  --brd:rgba(0,0,0,.07); --brd2:rgba(0,0,0,.12);
+  --golda:rgba(184,149,90,.08); --goldb:rgba(184,149,90,.18);
+  --greena:rgba(76,175,125,.10);
+}
+
+*,*::before,*::after { margin:0; padding:0; box-sizing:border-box }
+html { font-size:16px; }
+body {
+  background:var(--bg); color:var(--fg);
+  font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;
+  min-height:100vh; transition:background .4s,color .4s;
+  line-height:1.6;
+}
+
+/* HEADER */
+header {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:1.25rem 2rem;
+  border-bottom:1px solid var(--brd);
+  position:sticky; top:0; z-index:100;
+  background:var(--bg); backdrop-filter:blur(12px);
+}
+.logo {
+  font-size:1.35rem; font-weight:700; letter-spacing:.12em;
+  color:var(--gold); text-decoration:none; text-transform:uppercase;
+}
+.logo span { color:var(--fg2); font-weight:300; font-size:.85rem; margin-left:.5rem; letter-spacing:.04em; text-transform:none; }
+.header-actions { display:flex; gap:.75rem; align-items:center; }
+
+/* BUTTONS */
+.btn {
+  display:inline-flex; align-items:center; justify-content:center; gap:.4rem;
+  padding:.45rem .9rem; border-radius:6px; border:1px solid var(--brd2);
+  background:transparent; color:var(--fg2); font-size:.8rem;
+  cursor:pointer; transition:all .2s; font-family:inherit; letter-spacing:.03em;
+  white-space:nowrap;
+}
+.btn:hover:not(:disabled) { border-color:var(--gold); color:var(--gold); background:var(--golda); }
+.btn:disabled { opacity:.35; cursor:not-allowed; }
+.btn-primary {
+  background:var(--gold); color:#0b0b0a; border-color:var(--gold);
+  font-weight:600; padding:.55rem 1.2rem; font-size:.82rem;
+}
+.btn-primary:hover:not(:disabled) { background:#c9a468; border-color:#c9a468; color:#0b0b0a; }
+.btn-sm { padding:.3rem .65rem; font-size:.75rem; }
+.btn-icon { padding:.4rem; width:2rem; height:2rem; }
+.btn-icon svg { width:15px; height:15px; display:block; }
+
+/* LAYOUT */
+main { max-width:1400px; margin:0 auto; padding:2.25rem 1.5rem 4rem; }
+.page-title { text-align:center; margin-bottom:2rem; }
+.page-title h1 { font-size:2rem; font-weight:700; letter-spacing:.05em; color:var(--fg); }
+.page-title p { margin-top:.4rem; color:var(--fg2); font-size:.9rem; }
+
+.workspace { display:grid; grid-template-columns:300px 1fr; gap:1.25rem; align-items:start; }
+@media (max-width:900px) { .workspace { grid-template-columns:1fr; } }
+
+/* CARD */
+.card {
+  background:var(--bg2); border:1px solid var(--brd);
+  border-radius:var(--r); padding:1.25rem;
+}
+.card + .card { margin-top:1.25rem; }
+.card-label {
+  font-size:.72rem; font-weight:600; letter-spacing:.1em;
+  text-transform:uppercase; color:var(--fg2); margin-bottom:.9rem;
+}
+
+/* DROP ZONE */
+.dropzone {
+  border:1.5px dashed var(--brd2); border-radius:var(--r);
+  padding:2.5rem 1.25rem; text-align:center; cursor:pointer;
+  transition:all .22s var(--ease); background:var(--bg3);
+}
+.dropzone:hover, .dropzone.dragging {
+  border-color:var(--gold); background:var(--golda);
+}
+.dropzone.dragging { transform:scale(1.01); }
+.dropzone .icon { font-size:1.75rem; color:var(--gold); line-height:1; }
+.dropzone .title { margin-top:.75rem; font-size:.9rem; color:var(--fg); font-weight:600; }
+.dropzone .hint { margin-top:.3rem; font-size:.76rem; color:var(--fg3); }
+
+.file-chip {
+  display:flex; align-items:center; gap:.6rem; margin-top:.85rem;
+  background:var(--bg3); border:1px solid var(--brd2); border-radius:6px;
+  padding:.5rem .7rem; font-size:.78rem; color:var(--fg2);
+}
+.file-chip.hidden { display:none; }
+.file-chip .name {
+  flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--fg);
+}
+.file-chip .dims { color:var(--fg3); font-family:monospace; font-size:.72rem; }
+
+/* CONTROLS */
+.control { margin-bottom:1.1rem; }
+.control:last-child { margin-bottom:0; }
+.control-head {
+  display:flex; justify-content:space-between; align-items:baseline;
+  margin-bottom:.45rem;
+}
+.control-head label { font-size:.8rem; color:var(--fg2); letter-spacing:.02em; }
+.control-head .value { font-size:.75rem; color:var(--gold); font-family:monospace; }
+
+input[type=range] {
+  -webkit-appearance:none; appearance:none; width:100%; height:3px;
+  background:var(--bg4); border-radius:2px; outline:none; cursor:pointer;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance:none; appearance:none; width:14px; height:14px;
+  border-radius:50%; background:var(--gold); cursor:pointer;
+  border:2px solid var(--bg2); transition:transform .15s;
+}
+input[type=range]::-webkit-slider-thumb:hover { transform:scale(1.18); }
+input[type=range]::-moz-range-thumb {
+  width:12px; height:12px; border-radius:50%; background:var(--gold);
+  cursor:pointer; border:2px solid var(--bg2);
+}
+
+/* SEGMENTED / CHIPS */
+.chips { display:flex; flex-wrap:wrap; gap:.4rem; }
+.chip {
+  padding:.35rem .7rem; border-radius:20px;
+  border:1px solid var(--brd2); background:transparent;
+  color:var(--fg2); font-size:.75rem; cursor:pointer;
+  font-family:inherit; transition:all .18s; letter-spacing:.02em;
+}
+.chip:hover { border-color:var(--gold); color:var(--gold); }
+.chip.active { background:var(--goldb); border-color:var(--gold); color:var(--gold); font-weight:600; }
+
+.charset-preview {
+  margin-top:.5rem; font-family:ui-monospace,Menlo,Consolas,monospace;
+  font-size:.72rem; color:var(--fg3); background:var(--bg3);
+  border:1px solid var(--brd); border-radius:6px; padding:.4rem .55rem;
+  overflow-x:auto; white-space:pre; letter-spacing:.06em;
+}
+.text-input {
+  width:100%; margin-top:.5rem; background:var(--bg3);
+  border:1px solid var(--brd2); color:var(--fg); border-radius:6px;
+  padding:.45rem .6rem; font-size:.8rem;
+  font-family:ui-monospace,Menlo,Consolas,monospace;
+  outline:none; transition:border-color .2s; letter-spacing:.06em;
+}
+.text-input:focus { border-color:var(--gold); }
+.text-input.hidden { display:none; }
+
+/* SWITCH */
+.switch-row {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:.35rem 0;
+}
+.switch-row span { font-size:.8rem; color:var(--fg2); }
+.switch {
+  position:relative; width:36px; height:20px; border-radius:10px;
+  background:var(--bg4); border:1px solid var(--brd2); cursor:pointer;
+  transition:all .22s var(--ease); flex-shrink:0;
+}
+.switch::after {
+  content:''; position:absolute; top:2px; left:2px;
+  width:14px; height:14px; border-radius:50%;
+  background:var(--fg3); transition:all .22s var(--ease);
+}
+.switch.on { background:var(--goldb); border-color:var(--gold); }
+.switch.on::after { left:18px; background:var(--gold); }
+
+/* PREVIEW */
+.preview-wrap { min-height:420px; display:flex; flex-direction:column; }
+.preview-head {
+  display:flex; align-items:center; justify-content:space-between;
+  gap:.75rem; flex-wrap:wrap; margin-bottom:.9rem;
+}
+.preview-stats { font-size:.72rem; color:var(--fg3); font-family:monospace; }
+.preview-actions { display:flex; gap:.5rem; flex-wrap:wrap; }
+
+.stage {
+  flex:1; display:flex; align-items:center; justify-content:center;
+  border:1px solid var(--brd); border-radius:8px; padding:1rem;
+  overflow:auto; min-height:360px;
+  background-color:var(--bg3);
+  background-image:
+    linear-gradient(45deg,rgba(128,128,128,.07) 25%,transparent 25%,transparent 75%,rgba(128,128,128,.07) 75%),
+    linear-gradient(45deg,rgba(128,128,128,.07) 25%,transparent 25%,transparent 75%,rgba(128,128,128,.07) 75%);
+  background-size:18px 18px; background-position:0 0,9px 9px;
+}
+/* Keep the render inside the viewport however large the grid gets — the
+   canvas keeps its full intrinsic resolution for export either way. */
+#out {
+  display:block; width:auto; height:auto;
+  max-width:100%; max-height:min(70vh,820px);
+  image-rendering:auto;
+}
+#out.hidden { display:none; }
+@media (max-width:900px) { #out { max-height:min(60vh,620px); } }
+
+.empty-state { text-align:center; color:var(--fg3); padding:2rem 1rem; }
+.empty-state .icon { font-size:2rem; color:var(--fg3); margin-bottom:.6rem; }
+.empty-state p { font-size:.85rem; }
+.empty-state.hidden { display:none; }
+
+/* TEXT VIEW */
+#textOut {
+  width:100%; font-family:ui-monospace,Menlo,Consolas,"Liberation Mono",monospace;
+  font-size:6px; line-height:1; white-space:pre; overflow:auto;
+  color:var(--fg); background:transparent; border:0; letter-spacing:0;
+  max-height:70vh;
+}
+#textOut.hidden { display:none; }
+
+/* TOAST */
+.toast {
+  position:fixed; bottom:1.5rem; left:50%; transform:translate(-50%,1rem);
+  background:var(--bg4); border:1px solid var(--gold); color:var(--gold);
+  padding:.6rem 1.1rem; border-radius:6px; font-size:.82rem;
+  opacity:0; pointer-events:none; transition:all .28s var(--ease); z-index:200;
+}
+.toast.show { opacity:1; transform:translate(-50%,0); }
+.toast.err { border-color:#c0564f; color:#e08a83; }
+
+footer {
+  text-align:center; margin-top:2.5rem; padding-top:1.25rem;
+  border-top:1px solid var(--brd); color:var(--fg3); font-size:.75rem;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <a href="index.html" class="logo">ASCIIFY<span>Image → ASCII art</span></a>
+  <div class="header-actions">
+    <button class="btn btn-icon" id="themeBtn" title="Toggle theme" aria-label="Toggle theme">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true">
+        <circle cx="8" cy="8" r="5.2"></circle>
+        <path d="M8 2.8a5.2 5.2 0 0 1 0 10.4z" fill="currentColor" stroke="none"></path>
+      </svg>
+    </button>
+  </div>
+</header>
+
+<main>
+  <div class="page-title">
+    <h1>Turn any image into ASCII</h1>
+    <p>Drop an image, tune the characters, export as text or PNG. Everything runs in your browser — nothing is uploaded.</p>
+  </div>
+
+  <div class="workspace">
+    <!-- LEFT: SOURCE + CONTROLS -->
+    <div>
+      <div class="card">
+        <div class="card-label">Source</div>
+        <div class="dropzone" id="dropzone">
+          <div class="icon">⬚</div>
+          <div class="title">Drop an image here</div>
+          <div class="hint">or click to browse · or paste (⌘V)</div>
+        </div>
+        <input type="file" id="fileInput" accept="image/*" hidden>
+        <div class="file-chip hidden" id="fileChip">
+          <span class="name" id="fileName">—</span>
+          <span class="dims" id="fileDims"></span>
+        </div>
+        <button class="btn btn-sm" id="sampleBtn" style="margin-top:.6rem;width:100%">Use a sample image</button>
+      </div>
+
+      <div class="card">
+        <div class="card-label">Detail</div>
+        <div class="control">
+          <div class="control-head">
+            <label for="cols">Width in characters</label>
+            <span class="value" id="colsVal">120</span>
+          </div>
+          <input type="range" id="cols" min="20" max="300" step="1" value="120">
+        </div>
+        <div class="control">
+          <div class="control-head">
+            <label for="brightness">Brightness</label>
+            <span class="value" id="brightnessVal">0</span>
+          </div>
+          <input type="range" id="brightness" min="-100" max="100" step="1" value="0">
+        </div>
+        <div class="control">
+          <div class="control-head">
+            <label for="contrast">Contrast</label>
+            <span class="value" id="contrastVal">0</span>
+          </div>
+          <input type="range" id="contrast" min="-100" max="100" step="1" value="0">
+        </div>
+        <div class="switch-row">
+          <span>Invert tones</span>
+          <div class="switch" id="invertSw" role="switch" aria-checked="false" tabindex="0"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-label">Characters</div>
+        <div class="chips" id="charsetChips"></div>
+        <input type="text" class="text-input hidden" id="customChars" placeholder="dark → light, e.g.  .:-=+*#%@">
+        <div class="charset-preview" id="charsetPreview"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-label">Style</div>
+        <div class="control">
+          <div class="control-head"><label>Color</label></div>
+          <div class="chips" id="colorChips"></div>
+        </div>
+        <div class="control">
+          <div class="control-head"><label>Background</label></div>
+          <div class="chips" id="bgChips"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: PREVIEW -->
+    <div class="card preview-wrap">
+      <div class="preview-head">
+        <div>
+          <div class="card-label" style="margin-bottom:.2rem">Result</div>
+          <div class="preview-stats" id="stats">—</div>
+        </div>
+        <div class="preview-actions">
+          <button class="btn btn-sm" id="viewBtn" disabled>Text view</button>
+          <button class="btn btn-sm" id="copyBtn" disabled>Copy text</button>
+          <button class="btn btn-sm" id="txtBtn" disabled>.txt</button>
+          <button class="btn btn-primary btn-sm" id="pngBtn" disabled>Download PNG</button>
+        </div>
+      </div>
+      <div class="stage" id="stage">
+        <div class="empty-state" id="emptyState">
+          <div class="icon">✦</div>
+          <p>Your ASCII render will appear here.</p>
+        </div>
+        <canvas id="out" class="hidden"></canvas>
+        <pre id="textOut" class="hidden"></pre>
+      </div>
+    </div>
+  </div>
+
+  <footer>Runs entirely client-side · Creatator</footer>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+
+const MONO = 'ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace';
+
+const CHARSETS = {
+  standard: { label:'Standard', chars:' .:-=+*#%@' },
+  detailed: { label:'Detailed', chars:" .'`^\",:;Il!i><~+_-?][}{1)(|\\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$" },
+  blocks:   { label:'Blocks',   chars:' ░▒▓█' },
+  minimal:  { label:'Minimal',  chars:' .oO@' },
+  binary:   { label:'Binary',   chars:' 01' },
+  dots:     { label:'Dots',     chars:' ·•●' },
+  custom:   { label:'Custom',   chars:' .:-=+*#%@' }
+};
+
+const COLOR_MODES = {
+  mono:     'Mono',
+  original: 'Original',
+  gold:     'Duotone'
+};
+
+const BACKGROUNDS = {
+  dark:        'Dark',
+  light:       'Light',
+  transparent: 'None'
+};
+
+const state = {
+  img: null,
+  fileName: '',
+  cols: 120,
+  brightness: 0,
+  contrast: 0,
+  invert: false,
+  charset: 'standard',
+  customChars: '',
+  color: 'mono',
+  bg: 'dark',
+  textView: false
+};
+
+let asciiText = '';
+let renderQueued = false;
+// Whether glyphs are being drawn on a light ground; set once per render and
+// read by the per-glyph color helpers below.
+let light = false;
+
+// ── Elements ───────────────────────────────────────────────────────────
+const el = id => document.getElementById(id);
+const dropzone = el('dropzone'), fileInput = el('fileInput');
+const fileChip = el('fileChip'), fileName = el('fileName'), fileDims = el('fileDims');
+const out = el('out'), textOut = el('textOut'), emptyState = el('emptyState'), stage = el('stage');
+const stats = el('stats'), toast = el('toast');
+const copyBtn = el('copyBtn'), txtBtn = el('txtBtn'), pngBtn = el('pngBtn'), viewBtn = el('viewBtn');
+
+// Offscreen canvas used to downsample the source image to one pixel per cell.
+const sample = document.createElement('canvas');
+const sctx = sample.getContext('2d', { willReadFrequently:true });
+
+// ── Theme ──────────────────────────────────────────────────────────────
+el('themeBtn').addEventListener('click', () => {
+  const root = document.documentElement;
+  const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+  root.setAttribute('data-theme', next);
+  if (state.img) scheduleRender(); // mono/preview colors follow the theme
+});
+
+// ── Control wiring ─────────────────────────────────────────────────────
+function bindSlider(id, key) {
+  const input = el(id), label = el(id + 'Val');
+  input.addEventListener('input', () => {
+    state[key] = Number(input.value);
+    label.textContent = input.value;
+    scheduleRender();
+  });
+}
+bindSlider('cols', 'cols');
+bindSlider('brightness', 'brightness');
+bindSlider('contrast', 'contrast');
+
+const invertSw = el('invertSw');
+function toggleInvert() {
+  state.invert = !state.invert;
+  invertSw.classList.toggle('on', state.invert);
+  invertSw.setAttribute('aria-checked', String(state.invert));
+  scheduleRender();
+}
+invertSw.addEventListener('click', toggleInvert);
+invertSw.addEventListener('keydown', e => {
+  if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); toggleInvert(); }
+});
+
+function buildChips(container, entries, activeKey, onPick) {
+  container.innerHTML = '';
+  entries.forEach(([key, label]) => {
+    const b = document.createElement('button');
+    b.className = 'chip' + (key === activeKey ? ' active' : '');
+    b.textContent = label;
+    b.dataset.key = key;
+    b.addEventListener('click', () => {
+      [...container.children].forEach(c => c.classList.toggle('active', c === b));
+      onPick(key);
+    });
+    container.appendChild(b);
+  });
+}
+
+buildChips(
+  el('charsetChips'),
+  Object.entries(CHARSETS).map(([k, v]) => [k, v.label]),
+  state.charset,
+  key => {
+    state.charset = key;
+    el('customChars').classList.toggle('hidden', key !== 'custom');
+    if (key === 'custom' && !state.customChars) {
+      state.customChars = CHARSETS.custom.chars;
+      el('customChars').value = state.customChars;
+    }
+    updateCharsetPreview();
+    scheduleRender();
+  }
+);
+
+buildChips(el('colorChips'), Object.entries(COLOR_MODES), state.color, key => {
+  state.color = key;
+  scheduleRender();
+});
+
+buildChips(el('bgChips'), Object.entries(BACKGROUNDS), state.bg, key => {
+  state.bg = key;
+  scheduleRender();
+});
+
+el('customChars').addEventListener('input', e => {
+  state.customChars = e.target.value;
+  updateCharsetPreview();
+  scheduleRender();
+});
+
+function activeChars() {
+  if (state.charset === 'custom') {
+    const c = state.customChars;
+    return c.length >= 2 ? c : CHARSETS.custom.chars;
+  }
+  return CHARSETS[state.charset].chars;
+}
+
+function updateCharsetPreview() {
+  const chars = activeChars();
+  el('charsetPreview').textContent = `${chars}   (${chars.length} levels)`;
+}
+updateCharsetPreview();
+
+// ── Input: file, drag & drop, paste ────────────────────────────────────
+dropzone.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', e => {
+  if (e.target.files && e.target.files[0]) loadFile(e.target.files[0]);
+  fileInput.value = '';
+});
+
+['dragenter', 'dragover'].forEach(ev =>
+  dropzone.addEventListener(ev, e => { e.preventDefault(); dropzone.classList.add('dragging'); })
+);
+['dragleave', 'drop'].forEach(ev =>
+  dropzone.addEventListener(ev, e => { e.preventDefault(); dropzone.classList.remove('dragging'); })
+);
+dropzone.addEventListener('drop', e => {
+  const file = e.dataTransfer?.files?.[0];
+  if (file) loadFile(file);
+});
+
+document.addEventListener('paste', e => {
+  const item = [...(e.clipboardData?.items || [])].find(i => i.type.startsWith('image/'));
+  if (item) {
+    const file = item.getAsFile();
+    if (file) loadFile(file);
+  }
+});
+
+async function loadFile(file) {
+  if (!file.type.startsWith('image/')) {
+    showToast('That file is not an image.', true);
+    return;
+  }
+  try {
+    const img = await decodeImage(file);
+    state.img = img;
+    state.fileName = file.name || 'pasted-image';
+    fileName.textContent = state.fileName;
+    fileDims.textContent = `${img.width}×${img.height}`;
+    fileChip.classList.remove('hidden');
+    render();
+  } catch (err) {
+    showToast('Could not read that image.', true);
+  }
+}
+
+// Prefer createImageBitmap so EXIF-rotated photos come in upright.
+async function decodeImage(blob) {
+  if (window.createImageBitmap) {
+    try {
+      return await createImageBitmap(blob, { imageOrientation: 'from-image' });
+    } catch (_) { /* fall through to <img> */ }
+  }
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+    img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('decode failed')); };
+    img.src = url;
+  });
+}
+
+// ── Sample image (procedural, so the app has no external assets) ────────
+el('sampleBtn').addEventListener('click', async () => {
+  const c = document.createElement('canvas');
+  c.width = 900; c.height = 700;
+  const g = c.getContext('2d');
+
+  const sky = g.createLinearGradient(0, 0, 0, 700);
+  sky.addColorStop(0, '#0d0f18');
+  sky.addColorStop(.55, '#4a3b53');
+  sky.addColorStop(1, '#c98b52');
+  g.fillStyle = sky; g.fillRect(0, 0, 900, 700);
+
+  // sun
+  const sun = g.createRadialGradient(620, 430, 10, 620, 430, 130);
+  sun.addColorStop(0, '#fff3d0');
+  sun.addColorStop(.45, '#f0b860');
+  sun.addColorStop(1, 'rgba(240,184,96,0)');
+  g.fillStyle = sun; g.beginPath(); g.arc(620, 430, 130, 0, Math.PI * 2); g.fill();
+
+  // lit sphere
+  const sphere = g.createRadialGradient(300, 300, 15, 340, 340, 200);
+  sphere.addColorStop(0, '#ffffff');
+  sphere.addColorStop(.35, '#b9b2a6');
+  sphere.addColorStop(.8, '#3a3630');
+  sphere.addColorStop(1, '#14120f');
+  g.fillStyle = sphere; g.beginPath(); g.arc(330, 330, 170, 0, Math.PI * 2); g.fill();
+
+  // ridges
+  [['#241d26', 700, 160], ['#151119', 640, 120]].forEach(([fill, baseY, amp], i) => {
+    g.fillStyle = fill;
+    g.beginPath(); g.moveTo(0, 700);
+    for (let x = 0; x <= 900; x += 10) {
+      const y = baseY - 120 - amp * Math.sin(x / (150 + i * 60) + i * 1.7)
+                       - amp * 0.4 * Math.sin(x / 47 + i);
+      g.lineTo(x, y);
+    }
+    g.lineTo(900, 700); g.closePath(); g.fill();
+  });
+
+  const img = await decodeImage(await new Promise(res => c.toBlob(res, 'image/png')));
+  state.img = img;
+  state.fileName = 'sample';
+  fileName.textContent = 'sample (generated)';
+  fileDims.textContent = `${img.width}×${img.height}`;
+  fileChip.classList.remove('hidden');
+  render();
+});
+
+// ── Rendering ──────────────────────────────────────────────────────────
+function scheduleRender() {
+  if (!state.img || renderQueued) return;
+  renderQueued = true;
+  requestAnimationFrame(() => { renderQueued = false; render(); });
+}
+
+// Keep the exported canvas sharp without letting huge grids explode in size.
+function fontSizeFor(cols) {
+  if (cols <= 100) return 24;
+  if (cols <= 160) return 18;
+  if (cols <= 220) return 14;
+  return 11;
+}
+
+function themeColors() {
+  return {
+    // Background actually painted behind the glyphs (null = leave transparent).
+    bg: state.bg === 'dark' ? '#0b0b0a' : state.bg === 'light' ? '#f4f1eb' : null,
+    // Ink for mono mode: contrast against whichever ground is showing.
+    ink: lightGround() ? '#14120f' : '#f0ece4'
+  };
+}
+
+// What the glyphs actually sit on: the chosen background, or — when the
+// background is transparent — whatever the page theme shows through.
+function lightGround() {
+  if (state.bg === 'light') return true;
+  if (state.bg === 'dark') return false;
+  return document.documentElement.getAttribute('data-theme') === 'light';
+}
+
+// Glyph density assumes light ink on a dark ground. On a light ground the
+// ramp has to run the other way, so fold that into the invert flag.
+function effectiveInvert() {
+  return state.invert !== lightGround();
+}
+
+function render() {
+  const img = state.img;
+  if (!img) return;
+
+  const chars = activeChars();
+  const font = fontSizeFor(state.cols);
+
+  const ctx = out.getContext('2d');
+  ctx.font = `${font}px ${MONO}`;
+  const cellW = Math.max(1, ctx.measureText('M').width);
+  const cellH = Math.max(1, Math.round(font * 1.06));
+
+  const cols = state.cols;
+  const rows = Math.max(1, Math.round(cols * (img.height / img.width) * (cellW / cellH)));
+
+  // 1. Downsample: one source pixel per character cell.
+  sample.width = cols; sample.height = rows;
+  sctx.imageSmoothingEnabled = true;
+  sctx.imageSmoothingQuality = 'high';
+  sctx.clearRect(0, 0, cols, rows);
+  sctx.drawImage(img, 0, 0, cols, rows);
+  const data = sctx.getImageData(0, 0, cols, rows).data;
+
+  // 2. Tone curve.
+  const c = state.contrast;
+  const cf = (259 * (c + 255)) / (255 * (259 - c));
+  const bAdd = state.brightness / 100;
+  light = lightGround();
+  const inv = effectiveInvert();
+  const maxIdx = chars.length - 1;
+
+  const { bg, ink } = themeColors();
+
+  // 3. Paint.
+  out.width = Math.max(1, Math.ceil(cols * cellW));
+  out.height = Math.max(1, rows * cellH);
+  ctx.clearRect(0, 0, out.width, out.height);
+  if (bg) { ctx.fillStyle = bg; ctx.fillRect(0, 0, out.width, out.height); }
+
+  ctx.font = `${font}px ${MONO}`;
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'left';
+  if (state.color === 'mono') ctx.fillStyle = ink;
+
+  const lines = new Array(rows);
+  let row = new Array(cols);
+
+  for (let y = 0; y < rows; y++) {
+    const cy = y * cellH + cellH / 2;
+    for (let x = 0; x < cols; x++) {
+      const i = (y * cols + x) * 4;
+      const r = data[i], g = data[i + 1], b = data[i + 2];
+      const alpha = data[i + 3] / 255;
+
+      // Treat transparent source pixels as empty space.
+      let v = alpha < 0.06 ? (inv ? 1 : 0)
+                           : (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255 * alpha + (1 - alpha) * (inv ? 1 : 0);
+
+      v = cf * (v - 0.5) + 0.5 + bAdd;
+      if (inv) v = 1 - v;
+      v = v < 0 ? 0 : v > 1 ? 1 : v;
+
+      const ch = chars[Math.round(v * maxIdx)];
+      row[x] = ch;
+
+      if (ch !== ' ') {
+        if (state.color === 'original') ctx.fillStyle = readableColor(r, g, b);
+        else if (state.color === 'gold') ctx.fillStyle = duotone(v);
+        ctx.fillText(ch, x * cellW, cy);
+      }
+    }
+    lines[y] = row.join('');
+    row = new Array(cols);
+  }
+
+  asciiText = lines.join('\n');
+
+  // 4. Surface it.
+  emptyState.classList.add('hidden');
+  out.classList.toggle('hidden', state.textView);
+  textOut.classList.toggle('hidden', !state.textView);
+  if (state.textView) {
+    textOut.textContent = asciiText;
+    textOut.style.color = state.color === 'mono' ? ink : '';
+  }
+  stats.textContent = `${cols} × ${rows} chars · ${chars.length} levels · ${(asciiText.length / 1024).toFixed(1)} KB`;
+  [copyBtn, txtBtn, pngBtn, viewBtn].forEach(b => { b.disabled = false; });
+}
+
+// Source colors that sit too close to the background would render as
+// invisible glyphs, so pull them away from it while keeping their hue.
+function readableColor(r, g, b) {
+  const peak = Math.max(r, g, b);
+  if (peak === 0) return light ? 'rgb(0,0,0)' : 'rgb(90,90,90)';
+  const k = light ? Math.min(1, 170 / peak)     // darken pale glyphs on a pale ground
+                  : Math.max(1, 95 / peak);     // lift near-black glyphs on a dark ground
+  return `rgb(${Math.min(255, r * k) | 0},${Math.min(255, g * k) | 0},${Math.min(255, b * k) | 0})`;
+}
+
+function duotone(v) {
+  const lo = light ? [214, 190, 152] : [52, 42, 25];
+  const hi = light ? [122, 84, 26]   : [236, 206, 148];
+  const m = (a, b) => Math.round(a + (b - a) * v);
+  return `rgb(${m(lo[0], hi[0])},${m(lo[1], hi[1])},${m(lo[2], hi[2])})`;
+}
+
+// ── Output actions ─────────────────────────────────────────────────────
+viewBtn.addEventListener('click', () => {
+  state.textView = !state.textView;
+  viewBtn.textContent = state.textView ? 'Image view' : 'Text view';
+  render();
+});
+
+copyBtn.addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(asciiText);
+    showToast('ASCII copied to clipboard');
+  } catch (_) {
+    showToast('Clipboard blocked — use .txt instead', true);
+  }
+});
+
+txtBtn.addEventListener('click', () => {
+  const blob = new Blob([asciiText], { type:'text/plain;charset=utf-8' });
+  downloadBlob(blob, baseName() + '-ascii.txt');
+});
+
+pngBtn.addEventListener('click', () => {
+  out.toBlob(blob => {
+    if (!blob) { showToast('Export failed', true); return; }
+    downloadBlob(blob, baseName() + '-ascii.png');
+  }, 'image/png');
+});
+
+function baseName() {
+  return (state.fileName || 'image').replace(/\.[^.]+$/, '').replace(/[^\w-]+/g, '-') || 'image';
+}
+
+function downloadBlob(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  showToast('Saved ' + name);
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────
+let toastTimer;
+function showToast(msg, isError) {
+  toast.textContent = msg;
+  toast.classList.toggle('err', !!isError);
+  toast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove('show'), 2400);
+}
+
+// Re-render on resize only matters for the text view's fit; canvas scales via CSS.
+window.addEventListener('resize', () => { if (state.textView) scheduleRender(); });
+</script>
+</body>
+</html>

@@ -49,6 +49,9 @@ nav::after{content:"";position:absolute;inset:0;
 .nav-links a{font-size:10px;letter-spacing:.16em;text-transform:uppercase;
   color:var(--fg2);text-decoration:none;transition:color .3s}
 .nav-links a:hover{color:var(--gold)}
+/* Tighten the link row where the nav runs out of room, so the extra
+   entry keeps the footprint it had with three. */
+@media(max-width:700px){.nav-links{gap:10px}}
 .nav-right{display:flex;gap:10px;align-items:center}
 .ctrl{background:none;border:1px solid var(--brd2);color:var(--fg2);
   font-size:9px;letter-spacing:.12em;text-transform:uppercase;
@@ -279,6 +282,7 @@ footer{padding:28px 52px;border-top:1px solid var(--brd);
   <a href="#" class="nav-logo">Mohanned Al Rahmah</a>
   <ul class="nav-links">
     <li><a href="#work">Work</a></li>
+    <li><a href="#tools">Tools</a></li>
     <li><a href="#about">About</a></li>
     <li><a href="#contact">Contact</a></li>
   </ul>

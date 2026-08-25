@@ -92,7 +92,10 @@ main { padding:.25rem 1.25rem 9.5rem; }
   display:grid; grid-template-columns:328px minmax(0,1fr);
   gap:1rem; align-items:start; max-width:1720px; margin:0 auto;
 }
-@media (max-width:1080px) { .workspace { grid-template-columns:1fr; } }
+/* iPad landscape and small laptops still fit two columns — just a narrower
+   rail — so the image keeps the space that matters. */
+@media (max-width:1240px) { .workspace { grid-template-columns:286px minmax(0,1fr); } }
+@media (max-width:1023px) { .workspace { grid-template-columns:1fr; } }
 .rail { display:flex; flex-direction:column; gap:.85rem; }
 
 /* ── Panels ───────────────────────────────────────────────────────── */
@@ -233,10 +236,26 @@ input[type=color]::-webkit-color-swatch { border:none; border-radius:5px; }
   border-radius:4px; box-shadow:0 4px 24px rgba(0,0,0,.14);
 }
 #out.hidden { display:none; }
-@media (max-width:1080px) {
+/* Stacked layouts put the result first and pin it, so the image stays in
+   view while the controls below it are worked. */
+@media (max-width:1023px) {
+  .preview-wrap { order:-1; position:sticky; top:.4rem; z-index:60; padding:.6rem; }
+  .preview-head { padding:.1rem .25rem .5rem; }
+  .stage { min-height:auto; padding:.6rem; }
+  #out { max-height:min(34vh,300px); }
+  /* Two columns of cards uses a tablet's width instead of one long run. */
+  .rail { display:grid; grid-template-columns:1fr 1fr; align-items:start; }
+}
+@media (max-width:700px) {
+  .rail { grid-template-columns:1fr; }
+  main { padding:.25rem .7rem 8.5rem; }
+  .card { padding:.9rem .95rem; border-radius:15px; }
+  #out { max-height:min(30vh,260px); }
+}
+@media (max-width:1023px) and (orientation:landscape) and (max-height:520px) {
+  /* A phone on its side has almost no height to spare. */
+  #out { max-height:44vh; }
   .preview-wrap { position:static; }
-  .stage { min-height:50vh; }
-  #out { max-height:52vh; }
 }
 .empty-state { text-align:center; color:var(--fg3); padding:2rem 1rem; }
 .empty-state .icon { font-size:1.9rem; margin-bottom:.5rem; }
@@ -304,11 +323,48 @@ input[type=color]::-webkit-color-swatch { border:none; border-radius:5px; }
 .dock.panning { cursor:grabbing; scroll-behavior:auto; }
 .dock.panning .chip, .dock.panning .btn { pointer-events:none; }
 
+/* Below this the dock has to pan, so export moves to the visible left edge
+   rather than sitting off-screen behind a scroll nobody may notice. */
+@media (max-width:1300px) { .dock-group.export { order:-1; } }
+
+/* Tighten the dock before a 1440 laptop has to pan to reach Download. */
+@media (max-width:1560px) {
+  .dock-label { padding:0 .3rem 0 .5rem; font-size:.54rem; letter-spacing:.12em; }
+  .dock .chip { padding:.5rem .62rem; letter-spacing:.03em; }
+  .dock .btn-sm { padding:.42rem .62rem; }
+  .knob { width:48px; }
+}
 @media (max-width:760px) {
   .dock { justify-content:flex-start; }
   .dock-label { display:none; }
-  .dock .chip { padding:.45rem .58rem; font-size:.64rem; }
-  .knob { width:44px; } .knob svg { width:38px; height:38px; }
+  .dock .chip { padding:.5rem .6rem; font-size:.64rem; }
+  .knob { width:46px; } .knob svg { width:40px; height:40px; }
+  .logo .sub { display:none; }
+  header { padding:.7rem .8rem; }
+}
+/* Keep clear of the iOS home indicator. */
+.dock { bottom:calc(1.1rem + env(safe-area-inset-bottom, 0px)); }
+.toast { bottom:calc(6.4rem + env(safe-area-inset-bottom, 0px)); }
+.dock { -webkit-overflow-scrolling:touch; }
+
+/* Touch needs bigger targets than a cursor does. */
+@media (pointer:coarse) {
+  .chip { padding:.62rem .95rem; font-size:.75rem; }
+  .dock .chip { padding:.62rem .8rem; }
+  .switch { width:46px; height:27px; }
+  .switch::after { width:21px; height:21px; }
+  .switch.on::after { left:22px; }
+  /* A taller hit area, with the track painted as a line inside it so the
+     bar still reads as thin. */
+  input[type=range] {
+    height:24px; border-radius:0;
+    background:linear-gradient(var(--line2),var(--line2)) center/100% 4px no-repeat;
+  }
+  input[type=range]::-webkit-slider-thumb { width:22px; height:22px; border-width:4px; }
+  input[type=range]::-moz-range-thumb { width:18px; height:18px; }
+  .btn { padding:.6rem 1.05rem; }
+  .btn-sm { padding:.48rem .8rem; }
+  .dropzone { padding:1.9rem 1rem; }
 }
 
 /* ── Toast ────────────────────────────────────────────────────────── */
@@ -369,8 +425,10 @@ input[type=color]::-webkit-color-swatch { border:none; border-radius:5px; }
           <div class="switch" id="splitSw" role="switch" aria-checked="false" tabindex="0"></div>
         </div>
         <div class="split-only" id="splitBody">
-          <div class="sub-label">Photo stays on</div>
+          <div class="sub-label">Photo keeps</div>
           <div class="chips" id="sideChips"></div>
+          <div class="sub-label">Falloff</div>
+          <div class="chips" id="curveChips"></div>
           <div class="sub-label">Divide at</div>
           <div class="chips" id="fracChips"></div>
           <div class="control" style="margin-top:.7rem">
@@ -459,7 +517,7 @@ input[type=color]::-webkit-color-swatch { border:none; border-radius:5px; }
         </div>
         <div class="switch-row">
           <span>Transparent background</span>
-          <div class="switch on" id="bgSw" role="switch" aria-checked="true" tabindex="0"></div>
+          <div class="switch" id="bgSw" role="switch" aria-checked="false" tabindex="0"></div>
         </div>
       </div>
 
@@ -512,7 +570,8 @@ input[type=color]::-webkit-color-swatch { border:none; border-radius:5px; }
     <span class="dock-label">Frame</span>
     <div class="chips" id="aspectChips"></div>
   </div>
-  <div class="dock-group">
+  <div class="dock-group export">
+    <button class="btn btn-sm" id="copyBtn" disabled title="Copy the SVG so it can be pasted straight into Illustrator">Copy</button>
     <button class="btn btn-sm" id="pngBtn" disabled>PNG</button>
     <button class="btn btn-sm btn-accent" id="svgBtn" disabled>SVG</button>
   </div>
@@ -529,7 +588,12 @@ const EXPORT_MAX = 9000;    // hard ceiling on exported pixel dimensions
 
 const SHAPES = { circle:'Circle', square:'Square', diamond:'Diamond', line:'Line', cross:'Cross' };
 const MODES  = { mono:'Mono', duotone:'Duotone', cmyk:'CMYK' };
-const SIDES  = { left:'Left', right:'Right', top:'Top', bottom:'Bottom' };
+// Where the photograph survives; the screen takes everything else.
+const DIRS = {
+  right:'Right', left:'Left', top:'Top', bottom:'Bottom', diagonal:'Diagonal',
+  center:'Centre', edges:'Edges', radial:'Circle', burst:'Burst'
+};
+const CURVES = { linear:'Linear', smooth:'Smooth', hard:'Hard' };
 const FRACS  = { '1/6':1/6, '1/4':1/4, '1/3':1/3, '1/2':1/2, '2/3':2/3, '3/4':3/4 };
 const ASPECTS = { full:null, '16:9':16/9, '4:3':4/3, '1:1':1, '4:5':4/5, '9:16':9/16 };
 const SCALES = { '1':1, '2':2, '3':3, '4':4 };
@@ -567,10 +631,12 @@ const state = {
   img:null, fileName:'',
   cell:8, angle:45, dotScale:1, minDot:4, shape:'circle',
   brightness:0, contrast:0, gamma:1, black:0, white:100, blur:0, invert:false,
-  mode:'mono', ink:'#0b0b0a', bg:'#ffffff', transparent:true,
+  // Paper on by default: black ink over a transparent ground is invisible
+  // against a dark stage, and a halftone is headed for paper anyway.
+  mode:'mono', ink:'#0b0b0a', bg:'#ffffff', transparent:false,
   merge:true, stroke:false, precision:2,
   aspect:'full',
-  split:false, splitSide:'right', splitAt:50, feather:6, embed:true,
+  split:false, splitDir:'right', curve:'linear', splitAt:50, feather:6, embed:true,
   scale:2
 };
 
@@ -671,7 +737,8 @@ function setChip(container, key) {
 
 buildChips(el('shapeChips'), Object.entries(SHAPES), state.shape, k => { state.shape = k; schedule(); });
 buildChips(el('modeChips'), Object.entries(MODES), state.mode, k => { applyMode(k); schedule(); });
-buildChips(el('sideChips'), Object.entries(SIDES), state.splitSide, k => { state.splitSide = k; schedule(); });
+buildChips(el('sideChips'), Object.entries(DIRS), state.splitDir, k => { state.splitDir = k; schedule(); });
+buildChips(el('curveChips'), Object.entries(CURVES), state.curve, k => { state.curve = k; schedule(); });
 buildChips(el('fracChips'), Object.keys(FRACS).map(k => [k, k]), null,
   k => { setSlider('splitAt', Math.round(FRACS[k] * 100)); });
 buildChips(el('aspectChips'), Object.keys(ASPECTS).map(k => [k, k === 'full' ? 'Full' : k]), state.aspect,
@@ -963,21 +1030,65 @@ function sampleCell(cx, cy, half, sub) {
 }
 
 /* ── Split ─────────────────────────────────────────────────────────── */
-// 1 where the screen is at full strength, 0 where the photograph takes over,
-// ramping across the blend band so the two halves meet instead of butting.
-function splitFactor(x, y) {
-  if (!state.split) return 1;
-  const horiz = state.splitSide === 'left' || state.splitSide === 'right';
-  const size = horiz ? work.w : work.h;
-  const p = horiz ? x : y;
-  const b = state.splitAt / 100 * size;
-  const f = Math.max(0.0001, state.feather / 100 * size);
-  const t = (state.splitSide === 'right' || state.splitSide === 'bottom')
-    ? (b - p) / f : (p - b) / f;
-  return Math.max(0, Math.min(1, t + 0.5));
+// Every direction reduces to one scalar field q in 0..1: the screen is at
+// full strength where q is 0, the photograph takes over where q is 1. Both
+// the dots and the photo mask read that same field, so they cannot drift
+// apart however the transition is shaped.
+function q2D(x, y, w, h) {
+  const u = x / w, v = y / h;
+  switch (state.splitDir) {
+    case 'left':     return 1 - u;
+    case 'bottom':   return v;
+    case 'top':      return 1 - v;
+    // Projection onto the image diagonal. A canvas gradient drawn corner to
+    // corner projects points exactly this way, so the mask matches the dots
+    // at any aspect — averaging u and v would only agree on a square.
+    case 'diagonal': return (x * w + y * h) / (w * w + h * h);
+    case 'center':   return 1 - 2 * Math.abs(u - 0.5);
+    case 'edges':    return 2 * Math.abs(u - 0.5);
+    case 'radial':   return 1 - radius(x, y, w, h);
+    case 'burst':    return radius(x, y, w, h);
+    default:         return u;   // right
+  }
+}
+function radius(x, y, w, h) {
+  return Math.hypot(x - w / 2, y - h / 2) / Math.hypot(w / 2, h / 2);
 }
 
-// The photograph half, masked with the same ramp the dots fade along.
+// The same field expressed along whichever axis the mask gradient runs.
+function q1D(u) {
+  switch (state.splitDir) {
+    case 'left':   case 'top':    case 'radial': return 1 - u;
+    case 'center': return 1 - 2 * Math.abs(u - 0.5);
+    case 'edges':  return 2 * Math.abs(u - 0.5);
+    default:       return u;
+  }
+}
+
+// How abruptly the two treatments trade places across the blend band.
+function falloff(t) {
+  if (t <= 0) return 0;
+  if (t >= 1) return 1;
+  switch (state.curve) {
+    case 'smooth': return t * t * (3 - 2 * t);
+    case 'hard':   return t < 0.5 ? 0 : 1;
+    default:       return t;
+  }
+}
+
+function factorFromQ(q) {
+  const a = state.splitAt / 100;
+  const f = Math.max(0.0001, state.feather / 100);
+  return falloff((a - q) / f + 0.5);
+}
+
+function splitFactor(x, y) {
+  if (!state.split) return 1;
+  return factorFromQ(q2D(x, y, work.w, work.h));
+}
+
+// The photograph, masked by sampling the very same falloff the dots use, so
+// a curve or a radial shape needs no second implementation.
 function photoLayer(scale) {
   const w = Math.round(work.w * scale), h = Math.round(work.h * scale);
   const c = document.createElement('canvas');
@@ -987,17 +1098,20 @@ function photoLayer(scale) {
   const s = work.src;
   g.drawImage(state.img, s.sx, s.sy, s.sw, s.sh, 0, 0, w, h);
 
-  const horiz = state.splitSide === 'left' || state.splitSide === 'right';
-  const size = horiz ? w : h;
-  const b = state.splitAt / 100 * size;
-  const f = Math.max(0.5, state.feather / 100 * size);
-  const photoLater = state.splitSide === 'right' || state.splitSide === 'bottom';
-  const a0 = b + (photoLater ? -f / 2 : f / 2);
-  const a1 = b + (photoLater ? f / 2 : -f / 2);
+  const d = state.splitDir;
+  let grad;
+  if (d === 'top' || d === 'bottom') grad = g.createLinearGradient(0, 0, 0, h);
+  else if (d === 'diagonal') grad = g.createLinearGradient(0, 0, w, h);
+  else if (d === 'radial' || d === 'burst')
+    grad = g.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, Math.hypot(w / 2, h / 2));
+  else grad = g.createLinearGradient(0, 0, w, 0);
 
-  const grad = horiz ? g.createLinearGradient(a0, 0, a1, 0) : g.createLinearGradient(0, a0, 0, a1);
-  grad.addColorStop(0, 'rgba(0,0,0,0)');
-  grad.addColorStop(1, 'rgba(0,0,0,1)');
+  const N = 64;
+  for (let i = 0; i <= N; i++) {
+    const u = i / N;
+    grad.addColorStop(u, `rgba(0,0,0,${(1 - factorFromQ(q1D(u))).toFixed(4)})`);
+  }
+
   g.globalCompositeOperation = 'destination-in';
   g.fillStyle = grad;
   g.fillRect(0, 0, w, h);
@@ -1259,7 +1373,7 @@ function render() {
   updateStats();
   emptyState.classList.add('hidden');
   out.classList.remove('hidden');
-  svgBtn.disabled = pngBtn.disabled = false;
+  svgBtn.disabled = pngBtn.disabled = el('copyBtn').disabled = false;
   busy.classList.remove('on');
 }
 
@@ -1271,7 +1385,7 @@ function updateStats() {
     `${work.w} × ${work.h} · ${layers.length} ink${layers.length > 1 ? 's' : ''} · ` +
     `<span class="${total > HEAVY_DOTS ? 'heavy' : ''}">${total.toLocaleString()} dots</span>` +
     ` · SVG ~${estimateSize(total)} · PNG ${px}` +
-    (state.split ? ` · split ${state.splitAt}% ${state.splitSide}` : '');
+    (state.split ? ` · split ${state.splitAt}% ${DIRS[state.splitDir].toLowerCase()}` : '');
 }
 
 function estimateSize(dots) {
@@ -1340,6 +1454,32 @@ pngBtn.addEventListener('click', () => {
     if (!b) { showToast('Export failed', true); return; }
     downloadBlob(b, `${baseName()}-amplify@${scale}x.png`);
   }, 'image/png');
+});
+
+// Illustrator parses SVG source pasted from the clipboard, so handing over
+// the markup as plain text lands real vector artwork rather than a file.
+const copyBtn = el('copyBtn');
+copyBtn.addEventListener('click', async () => {
+  const svg = buildSVG();
+  const kb = Math.round(svg.length / 1024);
+  const note = kb > 1024 ? `${(kb / 1024).toFixed(1)} MB` : `${kb} KB`;
+  try {
+    await navigator.clipboard.writeText(svg);
+    showToast(`SVG copied (${note}) — paste into Illustrator`);
+  } catch (_) {
+    // clipboard API needs a secure context; fall back to a scratch textarea.
+    const ta = document.createElement('textarea');
+    ta.value = svg;
+    ta.setAttribute('readonly', '');
+    ta.style.cssText = 'position:fixed;top:0;left:-9999px;opacity:0';
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (_) {}
+    ta.remove();
+    showToast(ok ? `SVG copied (${note}) — paste into Illustrator`
+                 : 'Could not reach the clipboard — use Download SVG', !ok);
+  }
 });
 
 function baseName() {

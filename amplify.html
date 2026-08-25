@@ -7,24 +7,30 @@
 <style>
 /* Light working surface, glass dock, one gradient reserved for whatever
    is currently active. */
+/* Light is a Bauhaus room: paper, black rule, the three primaries, flat
+   surfaces and square corners. No gradient, no shadow, nothing atmospheric. */
 :root {
-  --bg:#eceef1; --panel:#ffffff; --sunk:#f4f5f7;
-  --fg:#101114; --fg2:#6b7078; --fg3:#a2a7ae;
-  --line:rgba(16,17,20,.09); --line2:rgba(16,17,20,.14);
+  --bg:#f0efe9; --panel:#ffffff; --sunk:#eceae1;
+  --fg:#0f0f0f; --fg2:#454545; --fg3:#8b8b86;
+  --line:rgba(15,15,15,.20); --line2:rgba(15,15,15,.38);
+  --bau-red:#E2231A; --bau-blue:#00549F; --bau-yellow:#F5C400;
   --brand1:#0e9488; --brand2:#22c55e; --brand3:#a3e635;
-  --accent:#16a06d; --on-accent:#04140d;
-  --warn:#e0574a;
-  /* Kept deliberately sheer — glass only reads as glass when what is behind
-     it actually comes through. */
-  --glass-a:rgba(64,116,198,.34); --glass-b:rgba(12,34,78,.52);
-  --glass-line:rgba(255,255,255,.26); --glass-fg:#cfdcf0;
-  --shadow:0 1px 2px rgba(16,17,20,.05), 0 12px 32px rgba(16,17,20,.07);
+  --accent:var(--bau-red); --on-accent:#ffffff;
+  --warn:#E2231A;
+  --flat:1;
+  /* Sheer enough that the blur reads, deep enough that pale type on it
+     still clears contrast over a light room. */
+  --glass-a:rgba(34,72,138,.68); --glass-b:rgba(7,22,56,.82);
+  --glass-line:rgba(255,255,255,.24); --glass-fg:#dbe6f5;
+  --shadow:none;
   --glass-shadow:0 14px 48px rgba(6,20,48,.40), inset 0 1px 0 rgba(255,255,255,.32),
                  inset 0 -1px 0 rgba(255,255,255,.07);
   --ease:cubic-bezier(.16,1,.3,1);
-  --r:18px;
+  --r:3px;
 }
 [data-theme="dark"] {
+  --r:18px; --shadow:0 1px 2px rgba(0,0,0,.4), 0 12px 32px rgba(0,0,0,.32);
+  --accent:#2ee88a; --on-accent:#04140d; --warn:#ff6b5e; --flat:0;
   --bg:#0b0c0e; --panel:#141518; --sunk:#0f1013;
   --fg:#f2f3f5; --fg2:#9198a1; --fg3:#5f656d;
   --line:rgba(255,255,255,.07); --line2:rgba(255,255,255,.12);
@@ -84,13 +90,17 @@ header {
 .dock .btn:hover:not(:disabled) { background:rgba(255,255,255,.2); color:#fff; }
 .dock .btn:disabled { opacity:.35; }
 .dock .btn-accent {
+  background:var(--accent); color:var(--on-accent);
+  font-weight:800; border-color:transparent;
+}
+[data-theme="dark"] .dock .btn-accent {
   background:linear-gradient(95deg,var(--brand1),var(--brand2) 55%,var(--brand3));
-  color:#04140d; font-weight:800; border-color:transparent;
+  color:#04140d;
 }
 .dock .btn-accent:hover:not(:disabled) { filter:brightness(1.08); color:#04140d; }
 
 /* ── Layout: options left, preview right ──────────────────────────── */
-main { padding:.25rem 1.25rem 9.5rem; }
+main { padding:.25rem 1.25rem 4.5rem; }
 .workspace {
   display:grid; grid-template-columns:328px minmax(0,1fr);
   gap:1rem; align-items:start; max-width:1720px; margin:0 auto;
@@ -125,7 +135,9 @@ main { padding:.25rem 1.25rem 9.5rem; }
 .dropzone:hover, .dropzone.dragging {
   border-color:var(--accent); background:color-mix(in srgb, var(--accent) 9%, var(--sunk));
 }
-.dropzone .icon { font-size:1.35rem; color:var(--fg3); line-height:1; }
+.dropzone .icon { color:var(--fg3); line-height:0; transition:color .2s var(--ease); }
+.dropzone .icon svg { width:26px; height:26px; display:inline-block; }
+.dropzone:hover .icon, .dropzone.dragging .icon { color:var(--accent); }
 .dropzone .title { margin-top:.5rem; font-size:.82rem; font-weight:700; }
 .dropzone .hint { margin-top:.15rem; font-size:.7rem; color:var(--fg3); }
 
@@ -176,11 +188,13 @@ input[type=range]:focus-visible { outline:2px solid var(--accent); outline-offse
 .chip:hover { border-color:var(--fg3); color:var(--fg); }
 /* The gradient only ever sits on near-black, so contrast holds in both themes. */
 .chip.active {
-  background:#0c0d0f; border-color:#0c0d0f; font-weight:700;
-  background-image:linear-gradient(95deg,var(--brand1),var(--brand2) 55%,var(--brand3));
-  color:#04140d;
+  background:var(--accent); border-color:var(--accent); color:var(--on-accent);
+  font-weight:700; background-image:none;
 }
-[data-theme="dark"] .chip.active { border-color:transparent; }
+[data-theme="dark"] .chip.active {
+  background-image:linear-gradient(95deg,var(--brand1),var(--brand2) 55%,var(--brand3));
+  border-color:transparent; color:#04140d;
+}
 
 /* ── Switches ─────────────────────────────────────────────────────── */
 .switch-row { display:flex; align-items:center; justify-content:space-between; gap:.75rem; padding:.28rem 0; }
@@ -194,7 +208,8 @@ input[type=range]:focus-visible { outline:2px solid var(--accent); outline-offse
   border-radius:50%; background:var(--panel); box-shadow:0 1px 3px rgba(0,0,0,.25);
   transition:left .2s var(--ease);
 }
-.switch.on { background:linear-gradient(95deg,var(--brand1),var(--brand2)); }
+.switch.on { background:var(--accent); }
+[data-theme="dark"] .switch.on { background:linear-gradient(95deg,var(--brand1),var(--brand2)); }
 .switch.on::after { left:19px; background:#fff; }
 .switch:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
 
@@ -251,7 +266,7 @@ input[type=color]::-webkit-color-swatch { border:none; border-radius:5px; }
 }
 @media (max-width:700px) {
   .rail { grid-template-columns:1fr; }
-  main { padding:.25rem .7rem 8.5rem; }
+  main { padding:.25rem .7rem 4rem; }
   .card { padding:.9rem .95rem; border-radius:15px; }
   #out { max-height:min(30vh,260px); }
 }
@@ -300,6 +315,9 @@ input[type=color]::-webkit-color-swatch { border:none; border-radius:5px; }
 }
 .dock .chip:hover { color:#fff; background:rgba(255,255,255,.13); }
 .dock .chip.active {
+  background:var(--accent); background-image:none; color:var(--on-accent);
+}
+[data-theme="dark"] .dock .chip.active {
   background-image:linear-gradient(95deg,var(--brand1),var(--brand2) 55%,var(--brand3));
   color:#04140d;
 }
@@ -312,17 +330,25 @@ input[type=color]::-webkit-color-swatch { border:none; border-radius:5px; }
   padding:.1rem 0;
 }
 .knob svg { width:44px; height:44px; display:block; }
-.knob .tick { stroke:rgba(215,231,255,.3); stroke-width:1.2; }
-.knob .tick.lit { stroke:var(--brand3); stroke-width:1.8; }
-.knob .face { fill:rgba(8,20,42,.55); stroke:rgba(255,255,255,.16); }
-.knob .ind { stroke:var(--brand3); stroke-width:2.1; stroke-linecap:round; }
+/* Braun: a plain disc, a fine collar of ticks, and exactly one bright
+   marker. Each dial carries its own primary so the three read apart at a
+   glance without a single label being read. */
+.knob .tick { stroke:rgba(226,236,250,.34); stroke-width:1; }
+.knob .tick.lit { stroke:rgba(255,255,255,.78); stroke-width:1.3; }
+.knob .face { fill:#141619; stroke:rgba(255,255,255,.28); stroke-width:.8; }
+.knob .collar { fill:none; stroke:rgba(255,255,255,.13); stroke-width:.8; }
+.knob .ind { stroke:var(--knob-mark, #F5C400); stroke-width:2.4; stroke-linecap:butt; }
+.knob[data-k="brightness"] { --knob-mark:#F5C400; }
+.knob[data-k="contrast"]   { --knob-mark:#E2231A; }
+.knob[data-k="gamma"]      { --knob-mark:#2E7DD1; }
+.knob .tick.lit { stroke:var(--knob-mark, #fff); }
 .knob .k-name {
-  fill:rgba(215,231,255,.62); font-size:5.4px; font-weight:800;
-  letter-spacing:.09em; text-anchor:middle; font-family:inherit;
+  fill:rgba(226,236,250,.55); font-size:5px; font-weight:700;
+  letter-spacing:.14em; text-anchor:middle; font-family:inherit;
 }
 .knob .k-val {
-  fill:#fff; font-size:9.4px; font-weight:800;
-  text-anchor:middle; font-family:inherit;
+  fill:#fff; font-size:9px; font-weight:600;
+  text-anchor:middle; font-family:inherit; font-variant-numeric:tabular-nums;
 }
 .knob:focus-visible { outline:2px solid var(--brand3); outline-offset:2px; border-radius:10px; }
 .knob.dragging .face { stroke:var(--brand3); }
@@ -377,55 +403,6 @@ input[type=color]::-webkit-color-swatch { border:none; border-radius:5px; }
   .dropzone { padding:1.9rem 1rem; }
 }
 
-/* ── Loupe ────────────────────────────────────────────────────────── */
-/* Sits clear of the dock, and never swallows a click except on its own bar. */
-.loupe {
-  position:fixed; left:1.1rem; z-index:135;
-  bottom:calc(6.4rem + env(safe-area-inset-bottom, 0px));
-  display:none; flex-direction:column; gap:5px; padding:5px;
-  border-radius:18px;
-  background:linear-gradient(165deg,var(--glass-a),var(--glass-b));
-  border:1px solid var(--glass-line);
-  box-shadow:var(--glass-shadow);
-  backdrop-filter:blur(30px) saturate(1.9) brightness(1.06);
-  -webkit-backdrop-filter:blur(30px) saturate(1.9) brightness(1.06);
-  pointer-events:none;
-}
-.loupe.on { display:flex; }
-#loupeCanvas {
-  display:block; width:216px; height:216px; border-radius:13px;
-  background:#fff;
-  box-shadow:0 2px 10px rgba(0,0,0,.28);
-}
-.loupe.collapsed #loupeCanvas { display:none; }
-.loupe-bar {
-  display:flex; align-items:center; justify-content:space-between; gap:.3rem;
-  pointer-events:auto;
-}
-.loupe-bar .chips { flex-wrap:nowrap; gap:.15rem; }
-.loupe-bar .chip {
-  border:0; background:transparent; color:var(--glass-fg);
-  padding:.34rem .5rem; border-radius:999px;
-  font-size:.66rem; font-weight:700; letter-spacing:.04em;
-}
-.loupe-bar .chip:hover { color:#fff; background:rgba(255,255,255,.14); }
-.loupe-bar .chip.active {
-  background-image:linear-gradient(95deg,var(--brand1),var(--brand2) 55%,var(--brand3));
-  color:#04140d;
-}
-.loupe-toggle {
-  flex-shrink:0; width:24px; height:24px; border-radius:50%;
-  border:0; background:rgba(255,255,255,.12); color:#e6eefb;
-  font-family:inherit; font-size:.8rem; line-height:1; cursor:pointer;
-  transition:background .16s var(--ease);
-}
-.loupe-toggle:hover { background:rgba(255,255,255,.24); }
-@media (max-width:1080px) { #loupeCanvas { width:150px; height:150px; } }
-@media (max-width:700px)  {
-  .loupe { left:.7rem; bottom:calc(5.6rem + env(safe-area-inset-bottom, 0px)); }
-  #loupeCanvas { width:116px; height:116px; }
-}
-
 /* ── Toast ────────────────────────────────────────────────────────── */
 .toast {
   position:fixed; bottom:6.4rem; left:50%; transform:translate(-50%,.6rem);
@@ -460,7 +437,14 @@ input[type=color]::-webkit-color-swatch { border:none; border-radius:5px; }
       <div class="card">
         <div class="card-label">Source</div>
         <div class="dropzone" id="dropzone">
-          <div class="icon">⬚</div>
+          <div class="icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 15.5V4"/>
+              <path d="M7.5 8.5 12 4l4.5 4.5"/>
+              <path d="M3.5 14.5v3a2.5 2.5 0 0 0 2.5 2.5h12a2.5 2.5 0 0 0 2.5-2.5v-3"/>
+            </svg>
+          </div>
           <div class="title">Drop an image</div>
           <div class="hint">click to browse · or paste ⌘V</div>
         </div>
@@ -611,6 +595,7 @@ input[type=color]::-webkit-color-swatch { border:none; border-radius:5px; }
         </div>
         <canvas id="out" class="hidden"></canvas>
       </div>
+
     </div>
   </div>
 </main>
@@ -633,14 +618,6 @@ input[type=color]::-webkit-color-swatch { border:none; border-radius:5px; }
     <button class="btn btn-sm" id="copyBtn" disabled title="Copy the SVG so it can be pasted straight into Illustrator">Copy</button>
     <button class="btn btn-sm" id="pngBtn" disabled>PNG</button>
     <button class="btn btn-sm btn-accent" id="svgBtn" disabled>SVG</button>
-  </div>
-</div>
-
-<div class="loupe" id="loupe">
-  <canvas id="loupeCanvas" width="432" height="432"></canvas>
-  <div class="loupe-bar">
-    <div class="chips" id="zoomChips"></div>
-    <button class="loupe-toggle" id="loupeToggle" aria-label="Collapse the zoom view">–</button>
   </div>
 </div>
 
@@ -878,12 +855,14 @@ function buildKnobs() {
       const x2 = 22 + Math.sin(a) * r2, y2 = 22 - Math.cos(a) * r2;
       ticks.push(`<line class="tick" data-i="${i}" x1="${x1.toFixed(2)}" y1="${y1.toFixed(2)}" x2="${x2.toFixed(2)}" y2="${y2.toFixed(2)}"/>`);
     }
+    wrap.dataset.k = k.id;
     wrap.innerHTML = `<svg viewBox="0 0 44 44" aria-hidden="true">
       ${ticks.join('')}
+      <circle class="collar" cx="22" cy="22" r="13.6"/>
       <circle class="face" cx="22" cy="22" r="12.4"/>
-      <line class="ind" x1="22" y1="22" x2="22" y2="12.4"/>
-      <text class="k-name" x="22" y="18.4">${k.name}</text>
-      <text class="k-val" x="22" y="28.4">0</text>
+      <line class="ind" x1="22" y1="13.2" x2="22" y2="10.2"/>
+      <text class="k-name" x="22" y="19">${k.name}</text>
+      <text class="k-val" x="22" y="28.6">0</text>
     </svg>`;
     host.appendChild(wrap);
     knobEls[k.id] = { wrap, k, ind: wrap.querySelector('.ind'),
@@ -943,8 +922,10 @@ function syncKnob(id) {
   const v = Number(el(id).value);
   const t = (v - k.min) / (k.max - k.min);
   const a = (-SWEEP / 2 + SWEEP * t) * Math.PI / 180;
-  kn.ind.setAttribute('x2', (22 + Math.sin(a) * 9.6).toFixed(2));
-  kn.ind.setAttribute('y2', (22 - Math.cos(a) * 9.6).toFixed(2));
+  kn.ind.setAttribute('x1', (22 + Math.sin(a) * 11.4).toFixed(2));
+  kn.ind.setAttribute('y1', (22 - Math.cos(a) * 11.4).toFixed(2));
+  kn.ind.setAttribute('x2', (22 + Math.sin(a) * 7.4).toFixed(2));
+  kn.ind.setAttribute('y2', (22 - Math.cos(a) * 7.4).toFixed(2));
   kn.val.textContent = k.fmt(v);
   const lit = Math.round(t * 20);
   kn.ticks.forEach((el2, i) => el2.classList.toggle('lit', i <= lit));
@@ -1323,9 +1304,9 @@ function shapePoints(d, angleDeg) {
 
 /* ── Painting, shared by preview and PNG export ────────────────────── */
 // Paints the window starting at (ox,oy) in artwork coordinates, magnified by
-// scale, into a cw x ch canvas. The whole frame is just the window at the
-// origin, so the preview, a 4x export and the loupe all run one painter and
-// cannot disagree about what the artwork looks like.
+// scale, into a cw x ch canvas. The whole frame is that window at the origin,
+// so the preview and every export run one painter and cannot disagree about
+// what the artwork looks like.
 function paintRegion(ctx, ox, oy, scale, cw, ch) {
   const { w, h } = work;
   const spanX = cw / scale, spanY = ch / scale;
@@ -1480,8 +1461,6 @@ function render() {
   emptyState.classList.add('hidden');
   out.classList.remove('hidden');
   svgBtn.disabled = pngBtn.disabled = el('copyBtn').disabled = false;
-  loupe.classList.add('on');
-  drawLoupe();
   busy.classList.remove('on');
 }
 
@@ -1599,62 +1578,6 @@ function downloadBlob(blob, name) {
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
   showToast('Saved ' + name);
-}
-
-/* ── Loupe ─────────────────────────────────────────────────────────── */
-// Dot work lives or dies at 1:1, and the stage always shows the frame scaled
-// down. The loupe reads straight off the rendered canvas at pixel scale so
-// the screen can be judged without exporting anything.
-const ZOOMS = { 2:'2×', 4:'4×', 8:'8×' };
-const loupe = el('loupe'), loupeCanvas = el('loupeCanvas');
-const lctx = loupeCanvas.getContext('2d');
-let zoom = 4;
-let focus = null;   // point of interest in canvas coordinates
-
-buildChips(el('zoomChips'), Object.keys(ZOOMS).map(k => [k, ZOOMS[k]]), String(zoom),
-  k => { zoom = Number(k); drawLoupe(); });
-
-el('loupeToggle').addEventListener('click', () => {
-  const collapsed = loupe.classList.toggle('collapsed');
-  el('loupeToggle').textContent = collapsed ? '+' : '–';
-  el('loupeToggle').setAttribute('aria-label', collapsed ? 'Expand the zoom view' : 'Collapse the zoom view');
-  if (!collapsed) drawLoupe();
-});
-
-// Track the pointer across the rendered image, in canvas pixels.
-function trackFrom(e) {
-  if (out.classList.contains('hidden')) return;
-  const r = out.getBoundingClientRect();
-  if (!r.width || !r.height) return;
-  const x = (e.clientX - r.left) / r.width * out.width;
-  const y = (e.clientY - r.top) / r.height * out.height;
-  if (x < 0 || y < 0 || x > out.width || y > out.height) return;
-  focus = { x, y };
-  drawLoupe();
-}
-out.addEventListener('pointermove', trackFrom);
-out.addEventListener('pointerdown', trackFrom);
-
-function drawLoupe() {
-  if (!work || out.classList.contains('hidden') || loupe.classList.contains('collapsed')) return;
-  const span = loupeCanvas.width / zoom;          // artwork pixels shown
-  const f = focus || { x: work.w / 2, y: work.h / 2 };
-  // Clamp so the view never runs off the artwork.
-  const ox = Math.max(0, Math.min(Math.max(0, work.w - span), f.x - span / 2));
-  const oy = Math.max(0, Math.min(Math.max(0, work.h - span), f.y - span / 2));
-  // Repaint the geometry at this magnification rather than blowing up the
-  // preview's pixels — the dots are vector, and the loupe exists to judge
-  // exactly the edges a magnified raster would throw away.
-  paintRegion(lctx, ox, oy, zoom, loupeCanvas.width, loupeCanvas.height);
-  // Transparent artwork needs something to read against; slide white behind
-  // what was just drawn rather than under it, which clearRect would erase.
-  if (state.transparent) {
-    lctx.setTransform(1, 0, 0, 1, 0, 0);
-    lctx.globalCompositeOperation = 'destination-over';
-    lctx.fillStyle = '#ffffff';
-    lctx.fillRect(0, 0, loupeCanvas.width, loupeCanvas.height);
-    lctx.globalCompositeOperation = 'source-over';
-  }
 }
 
 /* ── Dock panning ──────────────────────────────────────────────────── */

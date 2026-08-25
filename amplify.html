@@ -490,6 +490,44 @@ input[type=color]::-webkit-color-swatch { border:none; border-radius:5px; }
       </div>
 
       <div class="card">
+        <div class="card-label">Motion</div>
+        <div class="sub-label" style="margin-top:0">Move</div>
+        <div class="chips" id="moveChips"></div>
+        <div class="sub-label">Curve</div>
+        <div class="chips" id="easeChips"></div>
+        <div class="control" style="margin-top:.7rem">
+          <div class="control-head"><label for="mFrom">Start point</label><span class="value" id="mFromVal">0%</span></div>
+          <input type="range" id="mFrom" min="0" max="100" step="1" value="0">
+        </div>
+        <div class="control">
+          <div class="control-head"><label for="mTo">End point</label><span class="value" id="mToVal">100%</span></div>
+          <input type="range" id="mTo" min="0" max="100" step="1" value="100">
+        </div>
+        <div class="control">
+          <div class="control-head"><label for="mDur">Duration</label><span class="value" id="mDurVal">3.0 s</span></div>
+          <input type="range" id="mDur" min="0.5" max="12" step="0.1" value="3">
+        </div>
+        <div class="control">
+          <div class="control-head"><label for="mIn">Fade in</label><span class="value" id="mInVal">0.40 s</span></div>
+          <input type="range" id="mIn" min="0" max="3" step="0.05" value="0.4">
+        </div>
+        <div class="control">
+          <div class="control-head"><label for="mOut">Fade out</label><span class="value" id="mOutVal">0.40 s</span></div>
+          <input type="range" id="mOut" min="0" max="3" step="0.05" value="0.4">
+        </div>
+        <div class="switch-row">
+          <span>Return to the start</span>
+          <div class="switch" id="pingSw" role="switch" aria-checked="false" tabindex="0"></div>
+        </div>
+        <div class="sub-label">Frame rate</div>
+        <div class="chips" id="fpsChips"></div>
+        <div class="sub-label">Video resolution</div>
+        <div class="chips" id="vscaleChips"></div>
+        <button class="btn btn-sm" id="playBtn" style="margin-top:.8rem;width:100%">Preview the move</button>
+        <div id="renderNote" style="margin-top:.5rem;font-size:.7rem;color:var(--fg3);line-height:1.45"></div>
+      </div>
+
+      <div class="card">
         <div class="card-label">Screen</div>
         <div class="control">
           <div class="control-head"><label for="cell">Dot spacing</label><span class="value" id="cellVal">8 px</span></div>
@@ -615,6 +653,7 @@ input[type=color]::-webkit-color-swatch { border:none; border-radius:5px; }
     <div class="chips" id="aspectChips"></div>
   </div>
   <div class="dock-group export">
+    <button class="btn btn-sm" id="videoBtn" disabled title="Render the move as a video">Video</button>
     <button class="btn btn-sm" id="copyBtn" disabled title="Copy the SVG so it can be pasted straight into Illustrator">Copy</button>
     <button class="btn btn-sm" id="pngBtn" disabled>PNG</button>
     <button class="btn btn-sm btn-accent" id="svgBtn" disabled>SVG</button>
@@ -1460,7 +1499,8 @@ function render() {
   updateStats();
   emptyState.classList.add('hidden');
   out.classList.remove('hidden');
-  svgBtn.disabled = pngBtn.disabled = el('copyBtn').disabled = false;
+  svgBtn.disabled = pngBtn.disabled = el('copyBtn').disabled = el('videoBtn').disabled = false;
+  updateRenderNote();
   busy.classList.remove('on');
 }
 
@@ -1579,6 +1619,284 @@ function downloadBlob(blob, name) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
   showToast('Saved ' + name);
 }
+
+/* ── Motion ────────────────────────────────────────────────────────── */
+const MOVES = { sweep:'Sweep', bloom:'Bloom', rotate:'Rotate', dissolve:'Dissolve' };
+// The curves an Apple interface moves on: almost everything decelerates, and
+// nothing arrives at a constant speed.
+const EASES = {
+  out:    { label:'Ease out', c:[0.16, 1.00, 0.30, 1.00] },
+  inout:  { label:'In · out', c:[0.65, 0.00, 0.35, 1.00] },
+  spring: { label:'Spring',   c:[0.34, 1.56, 0.64, 1.00] },
+  in:     { label:'Ease in',  c:[0.55, 0.00, 1.00, 0.45] },
+  linear: { label:'Linear',   c:[0.00, 0.00, 1.00, 1.00] }
+};
+const FPS_OPTS = { 24:'24', 30:'30', 60:'60' };
+const VSCALES  = { 1:'1×', 2:'2×' };
+
+const motion = { move:'sweep', ease:'out', from:0, to:100, duration:3,
+                 fadeIn:.4, fadeOut:.4, ping:false, fps:30, vscale:1 };
+let motionBase = null;
+let playing = false;
+let baked = null;
+
+// Cubic bezier solved by Newton-Raphson, so a curve behaves exactly as the
+// same four numbers would in CSS — including a spring that overshoots past 1.
+function bezier(x1, y1, x2, y2) {
+  const A = (a, b) => 1 - 3 * b + 3 * a, B = (a, b) => 3 * b - 6 * a, C = a => 3 * a;
+  const calc = (t, a, b) => ((A(a, b) * t + B(a, b)) * t + C(a)) * t;
+  const slope = (t, a, b) => 3 * A(a, b) * t * t + 2 * B(a, b) * t + C(a);
+  return t => {
+    if (t <= 0) return 0;
+    if (t >= 1) return 1;
+    let g = t;
+    for (let i = 0; i < 6; i++) {
+      const d = slope(g, x1, x2);
+      if (Math.abs(d) < 1e-6) break;
+      g -= (calc(g, x1, x2) - t) / d;
+    }
+    return calc(g, y1, y2);
+  };
+}
+const easeFn = () => bezier.apply(null, EASES[motion.ease].c);
+
+// Sampling the image is the expensive half of a frame, and a sweep never
+// changes it — only which dots survive and how big they are. Bake the grid
+// once per look and the frames come almost free.
+function bakeSignature() {
+  return [state.cell, state.angle, state.blur, state.aspect, state.mode, state.ink,
+          state.brightness, state.contrast, state.gamma, state.black, state.white,
+          state.invert, state.fileName, work && work.w, work && work.h].join('|');
+}
+function bakeGrid() {
+  const saveSplit = state.split;
+  state.split = false;                       // bake the unmasked ink
+  const full = buildLayers();
+  state.split = saveSplit;
+  const maxR = state.cell / 2, ds = state.dotScale;
+  baked = {
+    sig: bakeSignature(),
+    channels: full.map(l => ({
+      key: l.key, color: l.color, angle: l.angle,
+      // Recover the ink each dot came from, so it can be re-masked per frame.
+      cells: l.dots.map(d => ({ x: d.x, y: d.y, ink: Math.pow(d.r / (maxR * ds), 2) }))
+    }))
+  };
+}
+function layersFromBake() {
+  const maxR = state.cell / 2, minInk = state.minDot / 100;
+  return baked.channels.map(ch => {
+    const dots = [];
+    for (const c of ch.cells) {
+      const ink = c.ink * splitFactor(c.x, c.y);
+      if (ink <= minInk) continue;
+      const r = maxR * Math.sqrt(ink) * state.dotScale;
+      if (r > 0.05) dots.push({ x: c.x, y: c.y, r });
+    }
+    return { key: ch.key, color: ch.color, angle: ch.angle, dots };
+  });
+}
+
+function captureBase() {
+  motionBase = { splitAt:state.splitAt, dotScale:state.dotScale,
+                 angle:state.angle, feather:state.feather, split:state.split };
+}
+function restoreBase() {
+  if (!motionBase) return;
+  state.splitAt = motionBase.splitAt; state.dotScale = motionBase.dotScale;
+  state.angle = motionBase.angle;     state.feather = motionBase.feather;
+  ['splitAt','dotScale','angle','feather'].forEach(k => {
+    el(k).value = state[k]; sliderSync[k](); syncKnob(k);
+  });
+  setSwitch('splitSw','split', motionBase.split);
+  el('splitBody').classList.toggle('show', state.split);
+  motionBase = null;
+}
+
+// Maps the normalised timeline onto whichever parameter the move drives.
+function applyMotion(t) {
+  const v = motion.from + (motion.to - motion.from) * easeFn()(t);
+  switch (motion.move) {
+    case 'bloom':    state.dotScale = Math.max(0.02, motionBase.dotScale * v / 100); break;
+    case 'rotate':   state.angle = motionBase.angle + (v - motion.from) * 3.6; break;
+    case 'dissolve': state.feather = Math.max(0, Math.min(40, v * 0.4)); break;
+    default:         state.splitAt = v; break;   // sweep
+  }
+}
+
+// A frame: re-mask, repaint, then dip toward paper at either end.
+function renderFrame(ctx, t, scale, cw, ch) {
+  applyMotion(t);
+  const resample = motion.move === 'rotate' || !baked || baked.sig !== bakeSignature();
+  layers = resample ? buildLayers() : layersFromBake();
+  paintRegion(ctx, 0, 0, scale, cw, ch);
+
+  const D = motion.duration, sec = t * D;
+  let a = 1;
+  if (motion.fadeIn > 0)  a = Math.min(a, sec / motion.fadeIn);
+  if (motion.fadeOut > 0) a = Math.min(a, (D - sec) / motion.fadeOut);
+  a = Math.max(0, Math.min(1, a));
+  if (a < 1) {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = 1 - a;
+    ctx.fillStyle = state.transparent ? '#ffffff' : state.bg;
+    ctx.fillRect(0, 0, cw, ch);
+    ctx.globalAlpha = 1;
+  }
+}
+
+// Ping-pong runs the timeline out and back inside the same duration.
+function timeAt(u) { return motion.ping ? (u < .5 ? u * 2 : (1 - u) * 2) : u; }
+
+function prepareMotion() {
+  captureBase();
+  if (motion.move === 'sweep' && !state.split) {
+    setSwitch('splitSw','split', true);
+    el('splitBody').classList.add('show');
+  }
+  if (!baked || baked.sig !== bakeSignature()) bakeGrid();
+}
+
+function updateRenderNote() {
+  const n = el('renderNote');
+  if (!n) return;
+  const frames = Math.round(motion.duration * motion.fps);
+  const px = work ? Math.round(work.w * motion.vscale) + '×' + Math.round(work.h * motion.vscale) : '—';
+  n.textContent = motion.duration.toFixed(1) + 's · ' + frames + ' frames · ' + px + ' · WebM. '
+    + (motion.move === 'rotate'
+        ? 'Rotating re-samples the image every frame, so it renders slowest.'
+        : 'Recording runs in real time.');
+}
+
+/* ── Motion controls ───────────────────────────────────────────────── */
+function bindMotionSlider(id, key, fmt) {
+  const input = el(id), label = el(id + 'Val');
+  const sync = () => { label.textContent = fmt(Number(input.value)); };
+  sliderSync[id] = sync;
+  input.addEventListener('input', () => {
+    motion[key] = Number(input.value);
+    sync(); updateRenderNote();
+  });
+  sync();
+}
+bindMotionSlider('mFrom','from', function (v) { return v + '%'; });
+bindMotionSlider('mTo','to', function (v) { return v + '%'; });
+bindMotionSlider('mDur','duration', function (v) { return v.toFixed(1) + ' s'; });
+bindMotionSlider('mIn','fadeIn', function (v) { return v.toFixed(2) + ' s'; });
+bindMotionSlider('mOut','fadeOut', function (v) { return v.toFixed(2) + ' s'; });
+
+buildChips(el('moveChips'), Object.entries(MOVES), motion.move,
+  function (k) { motion.move = k; updateRenderNote(); });
+buildChips(el('easeChips'), Object.keys(EASES).map(function (k) { return [k, EASES[k].label]; }), motion.ease,
+  function (k) { motion.ease = k; });
+buildChips(el('fpsChips'), Object.keys(FPS_OPTS).map(function (k) { return [k, FPS_OPTS[k]]; }), String(motion.fps),
+  function (k) { motion.fps = Number(k); updateRenderNote(); });
+buildChips(el('vscaleChips'), Object.keys(VSCALES).map(function (k) { return [k, VSCALES[k]]; }), String(motion.vscale),
+  function (k) { motion.vscale = Number(k); updateRenderNote(); });
+
+el('pingSw').addEventListener('click', function () {
+  motion.ping = !motion.ping;
+  el('pingSw').classList.toggle('on', motion.ping);
+  el('pingSw').setAttribute('aria-checked', String(motion.ping));
+});
+
+el('playBtn').addEventListener('click', function () {
+  if (!state.img) { showToast('Load an image first.', true); return; }
+  if (playing) { playing = false; return; }
+  playing = true;
+  el('playBtn').textContent = 'Stop';
+  prepareMotion();
+  const started = performance.now();
+  const ctx = out.getContext('2d');
+  const step = function () {
+    if (!playing) {
+      el('playBtn').textContent = 'Preview the move';
+      restoreBase(); render();
+      return;
+    }
+    const u = Math.min(1, (performance.now() - started) / (motion.duration * 1000));
+    out.width = work.w; out.height = work.h;
+    renderFrame(ctx, timeAt(u), 1, work.w, work.h);
+    if (u >= 1) playing = false;
+    requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+});
+
+/* ── Video export ──────────────────────────────────────────────────── */
+function pickMime() {
+  const want = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+  for (const t of want) {
+    if (window.MediaRecorder && MediaRecorder.isTypeSupported(t)) return t;
+  }
+  return '';
+}
+
+el('videoBtn').addEventListener('click', async function () {
+  if (!state.img) { showToast('Load an image first.', true); return; }
+  const mime = pickMime();
+  if (!mime) { showToast('This browser cannot record video — try Chrome or Edge', true); return; }
+  playing = false;
+
+  const scale = motion.vscale;
+  const cw = Math.round(work.w * scale), chh = Math.round(work.h * scale);
+  const c = document.createElement('canvas');
+  c.width = cw; c.height = chh;
+  const ctx = c.getContext('2d');
+
+  prepareMotion();
+
+  // Generous bitrate: a halftone is all high-frequency edge, and starving it
+  // turns the dots into mush.
+  const bitrate = Math.min(40e6, Math.round(cw * chh * motion.fps * 0.22));
+  const stream = c.captureStream(motion.fps);
+  const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: bitrate });
+  const chunks = [];
+  rec.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
+  const finished = new Promise(function (res) { rec.onstop = res; });
+
+  el('videoBtn').disabled = true;
+  busy.classList.add('on');
+  rec.start();
+
+  // Paced against the wall clock, because that is what stamps the frames. A
+  // heavy screen repeats a frame rather than stretching the clip.
+  const startedAt = performance.now();
+  const total = motion.duration * 1000;
+  await new Promise(function (res) {
+    const tick = function () {
+      const u = Math.min(1, (performance.now() - startedAt) / total);
+      renderFrame(ctx, timeAt(u), scale, cw, chh);
+      busy.textContent = 'recording ' + Math.round(u * 100) + '%';
+      if (u >= 1) return res();
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
+
+  // Hold the closing frame for a few intervals. A recorder stamps frames as
+  // they arrive, so without this the last one has no duration and the clip
+  // lands measurably short of what was asked for.
+  const hold = Math.ceil(1000 / motion.fps) * 4;
+  const heldUntil = performance.now() + hold;
+  await new Promise(function (res) {
+    const keep = function () {
+      renderFrame(ctx, timeAt(1), scale, cw, chh);
+      if (performance.now() >= heldUntil) return res();
+      requestAnimationFrame(keep);
+    };
+    requestAnimationFrame(keep);
+  });
+
+  rec.stop();
+  await finished;
+  busy.classList.remove('on');
+  busy.textContent = 'rendering';
+  el('videoBtn').disabled = false;
+  restoreBase();
+  render();
+  downloadBlob(new Blob(chunks, { type: mime }), baseName() + '-amplify.webm');
+});
 
 /* ── Dock panning ──────────────────────────────────────────────────── */
 // The dock is wider than the screen on most laptops, and a mouse has no

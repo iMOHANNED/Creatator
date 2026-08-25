@@ -14,10 +14,13 @@
   --brand1:#0e9488; --brand2:#22c55e; --brand3:#a3e635;
   --accent:#16a06d; --on-accent:#04140d;
   --warn:#e0574a;
-  --glass-a:rgba(41,86,158,.62); --glass-b:rgba(16,42,88,.72);
-  --glass-line:rgba(255,255,255,.20); --glass-fg:#c3d3ea;
+  /* Kept deliberately sheer — glass only reads as glass when what is behind
+     it actually comes through. */
+  --glass-a:rgba(64,116,198,.34); --glass-b:rgba(12,34,78,.52);
+  --glass-line:rgba(255,255,255,.26); --glass-fg:#cfdcf0;
   --shadow:0 1px 2px rgba(16,17,20,.05), 0 12px 32px rgba(16,17,20,.07);
-  --glass-shadow:0 10px 40px rgba(9,28,64,.32), inset 0 1px 0 rgba(255,255,255,.24);
+  --glass-shadow:0 14px 48px rgba(6,20,48,.40), inset 0 1px 0 rgba(255,255,255,.32),
+                 inset 0 -1px 0 rgba(255,255,255,.07);
   --ease:cubic-bezier(.16,1,.3,1);
   --r:18px;
 }
@@ -26,7 +29,7 @@
   --fg:#f2f3f5; --fg2:#9198a1; --fg3:#5f656d;
   --line:rgba(255,255,255,.07); --line2:rgba(255,255,255,.12);
   --accent:#2ee88a; --on-accent:#04140d;
-  --glass-a:rgba(38,78,146,.52); --glass-b:rgba(12,32,68,.66);
+  --glass-a:rgba(58,104,180,.28); --glass-b:rgba(8,24,58,.48);
   --shadow:0 1px 2px rgba(0,0,0,.4), 0 12px 32px rgba(0,0,0,.32);
 }
 
@@ -271,13 +274,20 @@ input[type=color]::-webkit-color-swatch { border:none; border-radius:5px; }
 }
 .dock::-webkit-scrollbar { display:none; }
 .dock-group {
+  position:relative; isolation:isolate;
   display:flex; align-items:center; gap:.2rem; flex-shrink:0;
   border-radius:999px; padding:5px;
   background:linear-gradient(165deg,var(--glass-a),var(--glass-b));
   border:1px solid var(--glass-line);
   box-shadow:var(--glass-shadow);
-  backdrop-filter:blur(22px) saturate(1.6);
-  -webkit-backdrop-filter:blur(22px) saturate(1.6);
+  backdrop-filter:blur(30px) saturate(1.9) brightness(1.06);
+  -webkit-backdrop-filter:blur(30px) saturate(1.9) brightness(1.06);
+}
+/* A specular sheen across the top edge, the way light catches real glass. */
+.dock-group::before {
+  content:''; position:absolute; inset:0; border-radius:inherit; z-index:-1;
+  background:linear-gradient(180deg,rgba(255,255,255,.20) 0%,rgba(255,255,255,.05) 42%,rgba(255,255,255,0) 62%);
+  pointer-events:none;
 }
 .dock-label {
   font-size:.57rem; font-weight:800; letter-spacing:.16em; text-transform:uppercase;
@@ -365,6 +375,55 @@ input[type=color]::-webkit-color-swatch { border:none; border-radius:5px; }
   .btn { padding:.6rem 1.05rem; }
   .btn-sm { padding:.48rem .8rem; }
   .dropzone { padding:1.9rem 1rem; }
+}
+
+/* ── Loupe ────────────────────────────────────────────────────────── */
+/* Sits clear of the dock, and never swallows a click except on its own bar. */
+.loupe {
+  position:fixed; left:1.1rem; z-index:135;
+  bottom:calc(6.4rem + env(safe-area-inset-bottom, 0px));
+  display:none; flex-direction:column; gap:5px; padding:5px;
+  border-radius:18px;
+  background:linear-gradient(165deg,var(--glass-a),var(--glass-b));
+  border:1px solid var(--glass-line);
+  box-shadow:var(--glass-shadow);
+  backdrop-filter:blur(30px) saturate(1.9) brightness(1.06);
+  -webkit-backdrop-filter:blur(30px) saturate(1.9) brightness(1.06);
+  pointer-events:none;
+}
+.loupe.on { display:flex; }
+#loupeCanvas {
+  display:block; width:216px; height:216px; border-radius:13px;
+  background:#fff;
+  box-shadow:0 2px 10px rgba(0,0,0,.28);
+}
+.loupe.collapsed #loupeCanvas { display:none; }
+.loupe-bar {
+  display:flex; align-items:center; justify-content:space-between; gap:.3rem;
+  pointer-events:auto;
+}
+.loupe-bar .chips { flex-wrap:nowrap; gap:.15rem; }
+.loupe-bar .chip {
+  border:0; background:transparent; color:var(--glass-fg);
+  padding:.34rem .5rem; border-radius:999px;
+  font-size:.66rem; font-weight:700; letter-spacing:.04em;
+}
+.loupe-bar .chip:hover { color:#fff; background:rgba(255,255,255,.14); }
+.loupe-bar .chip.active {
+  background-image:linear-gradient(95deg,var(--brand1),var(--brand2) 55%,var(--brand3));
+  color:#04140d;
+}
+.loupe-toggle {
+  flex-shrink:0; width:24px; height:24px; border-radius:50%;
+  border:0; background:rgba(255,255,255,.12); color:#e6eefb;
+  font-family:inherit; font-size:.8rem; line-height:1; cursor:pointer;
+  transition:background .16s var(--ease);
+}
+.loupe-toggle:hover { background:rgba(255,255,255,.24); }
+@media (max-width:1080px) { #loupeCanvas { width:150px; height:150px; } }
+@media (max-width:700px)  {
+  .loupe { left:.7rem; bottom:calc(5.6rem + env(safe-area-inset-bottom, 0px)); }
+  #loupeCanvas { width:116px; height:116px; }
 }
 
 /* ── Toast ────────────────────────────────────────────────────────── */
@@ -574,6 +633,14 @@ input[type=color]::-webkit-color-swatch { border:none; border-radius:5px; }
     <button class="btn btn-sm" id="copyBtn" disabled title="Copy the SVG so it can be pasted straight into Illustrator">Copy</button>
     <button class="btn btn-sm" id="pngBtn" disabled>PNG</button>
     <button class="btn btn-sm btn-accent" id="svgBtn" disabled>SVG</button>
+  </div>
+</div>
+
+<div class="loupe" id="loupe">
+  <canvas id="loupeCanvas" width="432" height="432"></canvas>
+  <div class="loupe-bar">
+    <div class="chips" id="zoomChips"></div>
+    <button class="loupe-toggle" id="loupeToggle" aria-label="Collapse the zoom view">–</button>
   </div>
 </div>
 
@@ -1255,27 +1322,62 @@ function shapePoints(d, angleDeg) {
 }
 
 /* ── Painting, shared by preview and PNG export ────────────────────── */
-function paint(ctx, scale) {
+// Paints the window starting at (ox,oy) in artwork coordinates, magnified by
+// scale, into a cw x ch canvas. The whole frame is just the window at the
+// origin, so the preview, a 4x export and the loupe all run one painter and
+// cannot disagree about what the artwork looks like.
+function paintRegion(ctx, ox, oy, scale, cw, ch) {
   const { w, h } = work;
-  ctx.save();
-  ctx.scale(scale, scale);
-  ctx.clearRect(0, 0, w, h);
-  if (!state.transparent) { ctx.fillStyle = state.bg; ctx.fillRect(0, 0, w, h); }
-  ctx.restore();
+  const spanX = cw / scale, spanY = ch / scale;
 
-  // The photograph goes down first, at its own resolution, so a high-res
-  // export gets real pixels rather than an upscaled preview.
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, cw, ch);
+  if (!state.transparent) { ctx.fillStyle = state.bg; ctx.fillRect(0, 0, cw, ch); }
+
+  // The photograph is cut straight from the source at the window's own
+  // resolution, so magnifying never resamples an already-scaled copy.
   if (state.split) {
-    const pl = photoLayer(scale);
-    ctx.drawImage(pl, 0, 0);
+    const src = work.src;
+    const tile = document.createElement('canvas');
+    tile.width = cw; tile.height = ch;
+    const tg = tile.getContext('2d');
+    tg.imageSmoothingEnabled = true; tg.imageSmoothingQuality = 'high';
+    tg.drawImage(state.img,
+      src.sx + (ox / w) * src.sw, src.sy + (oy / h) * src.sh,
+      (spanX / w) * src.sw, (spanY / h) * src.sh,
+      0, 0, cw, ch);
+
+    // Same falloff, expressed in this window's coordinates.
+    const X = p => (p - ox) * scale, Y = p => (p - oy) * scale;
+    const d = state.splitDir;
+    let grad;
+    if (d === 'top' || d === 'bottom') grad = tg.createLinearGradient(0, Y(0), 0, Y(h));
+    else if (d === 'diagonal') grad = tg.createLinearGradient(X(0), Y(0), X(w), Y(h));
+    else if (d === 'radial' || d === 'burst')
+      grad = tg.createRadialGradient(X(w / 2), Y(h / 2), 0, X(w / 2), Y(h / 2), Math.hypot(w / 2, h / 2) * scale);
+    else grad = tg.createLinearGradient(X(0), 0, X(w), 0);
+    for (let i = 0; i <= 64; i++) {
+      const u = i / 64;
+      grad.addColorStop(u, `rgba(0,0,0,${(1 - factorFromQ(q1D(u))).toFixed(4)})`);
+    }
+    tg.globalCompositeOperation = 'destination-in';
+    tg.fillStyle = grad;
+    tg.fillRect(0, 0, cw, ch);
+    ctx.drawImage(tile, 0, 0);
   }
 
   ctx.save();
   ctx.scale(scale, scale);
+  ctx.translate(-ox, -oy);
   if (state.mode === 'cmyk') ctx.globalCompositeOperation = 'multiply';
+  const pad = state.cell * 2;
   for (const layer of layers) {
     ctx.beginPath();
     for (const d of layer.dots) {
+      // Skip what the window cannot show; at high magnification that is
+      // nearly everything.
+      if (d.x < ox - pad || d.x > ox + spanX + pad ||
+          d.y < oy - pad || d.y > oy + spanY + pad) continue;
       const pts = shapePoints(d, layer.angle);
       if (!pts) { ctx.moveTo(d.x + d.r, d.y); ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2); }
       else {
@@ -1295,6 +1397,10 @@ function paint(ctx, scale) {
   }
   ctx.globalCompositeOperation = 'source-over';
   ctx.restore();
+}
+
+function paint(ctx, scale) {
+  paintRegion(ctx, 0, 0, scale, Math.round(work.w * scale), Math.round(work.h * scale));
 }
 
 function drawPreview() {
@@ -1374,6 +1480,8 @@ function render() {
   emptyState.classList.add('hidden');
   out.classList.remove('hidden');
   svgBtn.disabled = pngBtn.disabled = el('copyBtn').disabled = false;
+  loupe.classList.add('on');
+  drawLoupe();
   busy.classList.remove('on');
 }
 
@@ -1491,6 +1599,62 @@ function downloadBlob(blob, name) {
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
   showToast('Saved ' + name);
+}
+
+/* ── Loupe ─────────────────────────────────────────────────────────── */
+// Dot work lives or dies at 1:1, and the stage always shows the frame scaled
+// down. The loupe reads straight off the rendered canvas at pixel scale so
+// the screen can be judged without exporting anything.
+const ZOOMS = { 2:'2×', 4:'4×', 8:'8×' };
+const loupe = el('loupe'), loupeCanvas = el('loupeCanvas');
+const lctx = loupeCanvas.getContext('2d');
+let zoom = 4;
+let focus = null;   // point of interest in canvas coordinates
+
+buildChips(el('zoomChips'), Object.keys(ZOOMS).map(k => [k, ZOOMS[k]]), String(zoom),
+  k => { zoom = Number(k); drawLoupe(); });
+
+el('loupeToggle').addEventListener('click', () => {
+  const collapsed = loupe.classList.toggle('collapsed');
+  el('loupeToggle').textContent = collapsed ? '+' : '–';
+  el('loupeToggle').setAttribute('aria-label', collapsed ? 'Expand the zoom view' : 'Collapse the zoom view');
+  if (!collapsed) drawLoupe();
+});
+
+// Track the pointer across the rendered image, in canvas pixels.
+function trackFrom(e) {
+  if (out.classList.contains('hidden')) return;
+  const r = out.getBoundingClientRect();
+  if (!r.width || !r.height) return;
+  const x = (e.clientX - r.left) / r.width * out.width;
+  const y = (e.clientY - r.top) / r.height * out.height;
+  if (x < 0 || y < 0 || x > out.width || y > out.height) return;
+  focus = { x, y };
+  drawLoupe();
+}
+out.addEventListener('pointermove', trackFrom);
+out.addEventListener('pointerdown', trackFrom);
+
+function drawLoupe() {
+  if (!work || out.classList.contains('hidden') || loupe.classList.contains('collapsed')) return;
+  const span = loupeCanvas.width / zoom;          // artwork pixels shown
+  const f = focus || { x: work.w / 2, y: work.h / 2 };
+  // Clamp so the view never runs off the artwork.
+  const ox = Math.max(0, Math.min(Math.max(0, work.w - span), f.x - span / 2));
+  const oy = Math.max(0, Math.min(Math.max(0, work.h - span), f.y - span / 2));
+  // Repaint the geometry at this magnification rather than blowing up the
+  // preview's pixels — the dots are vector, and the loupe exists to judge
+  // exactly the edges a magnified raster would throw away.
+  paintRegion(lctx, ox, oy, zoom, loupeCanvas.width, loupeCanvas.height);
+  // Transparent artwork needs something to read against; slide white behind
+  // what was just drawn rather than under it, which clearRect would erase.
+  if (state.transparent) {
+    lctx.setTransform(1, 0, 0, 1, 0, 0);
+    lctx.globalCompositeOperation = 'destination-over';
+    lctx.fillStyle = '#ffffff';
+    lctx.fillRect(0, 0, loupeCanvas.width, loupeCanvas.height);
+    lctx.globalCompositeOperation = 'source-over';
+  }
 }
 
 /* ── Dock panning ──────────────────────────────────────────────────── */

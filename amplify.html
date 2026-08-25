@@ -298,8 +298,11 @@ input[type=color]::-webkit-color-swatch { border:none; border-radius:5px; }
 .knob:focus-visible { outline:2px solid var(--brand3); outline-offset:2px; border-radius:10px; }
 .knob.dragging .face { stroke:var(--brand3); }
 
-/* ── Split marker on the preview ──────────────────────────────────── */
-.stage-wrap { position:relative; display:inline-flex; }
+/* The dock pans sideways, so it must not hand text selection to a drag. */
+.dock { user-select:none; -webkit-user-select:none; }
+.dock.pannable { cursor:grab; }
+.dock.panning { cursor:grabbing; scroll-behavior:auto; }
+.dock.panning .chip, .dock.panning .btn { pointer-events:none; }
 
 @media (max-width:760px) {
   .dock { justify-content:flex-start; }
@@ -1349,6 +1352,60 @@ function downloadBlob(blob, name) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
   showToast('Saved ' + name);
 }
+
+/* ── Dock panning ──────────────────────────────────────────────────── */
+// The dock is wider than the screen on most laptops, and a mouse has no
+// horizontal wheel, so it gets both a wheel-to-pan and a grab-to-pan.
+const dock = document.querySelector('.dock');
+
+function dockOverflows() { return dock.scrollWidth > dock.clientWidth + 1; }
+function markPannable() { dock.classList.toggle('pannable', dockOverflows()); }
+markPannable();
+window.addEventListener('resize', markPannable);
+
+dock.addEventListener('wheel', e => {
+  // Knobs own their own wheel; the event reaches here by bubbling.
+  if (e.target.closest('.knob')) return;
+  if (!dockOverflows()) return;
+  // A trackpad sends deltaX, a mouse only deltaY — take whichever is larger.
+  const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+  if (!d) return;
+  e.preventDefault();
+  dock.scrollLeft += d;
+}, { passive:false });
+
+// Mouse only: touch already pans natively, and hijacking it would fight the
+// browser's own scrolling.
+let pan = null;
+dock.addEventListener('pointerdown', e => {
+  if (e.pointerType !== 'mouse' || e.button !== 0) return;
+  if (e.target.closest('.knob')) return;
+  if (!dockOverflows()) return;
+  pan = { x:e.clientX, left:dock.scrollLeft, id:e.pointerId, moved:false };
+});
+window.addEventListener('pointermove', e => {
+  if (!pan || e.pointerId !== pan.id) return;
+  const dx = e.clientX - pan.x;
+  // A few pixels of slop, so a click on a chip stays a click.
+  if (!pan.moved && Math.abs(dx) < 4) return;
+  if (!pan.moved) { pan.moved = true; dock.classList.add('panning'); }
+  dock.scrollLeft = pan.left - dx;
+  e.preventDefault();
+});
+window.addEventListener('pointerup', e => {
+  if (!pan || e.pointerId !== pan.id) return;
+  if (pan.moved) {
+    // Swallow the click the browser fires at the end of the drag.
+    dock.addEventListener('click', ev => { ev.stopPropagation(); ev.preventDefault(); },
+                          { capture:true, once:true });
+    setTimeout(() => dock.classList.remove('panning'), 0);
+  }
+  pan = null;
+});
+window.addEventListener('pointercancel', () => {
+  if (pan?.moved) dock.classList.remove('panning');
+  pan = null;
+});
 
 let toastTimer;
 function showToast(msg, isError) {

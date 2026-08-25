@@ -504,21 +504,35 @@ input[type=color]::-webkit-color-swatch { border:none; border-radius:5px; }
           <input type="range" id="mTo" min="0" max="100" step="1" value="100">
         </div>
         <div class="control">
+          <div class="control-head"><label for="mStagger">Softness</label><span class="value" id="mStaggerVal">62%</span></div>
+          <input type="range" id="mStagger" min="0" max="95" step="1" value="62">
+        </div>
+        <div class="control">
+          <div class="control-head"><label for="mZoomFrom">Zoom from</label><span class="value" id="mZoomFromVal">100%</span></div>
+          <input type="range" id="mZoomFrom" min="100" max="180" step="1" value="100">
+        </div>
+        <div class="control">
+          <div class="control-head"><label for="mZoomTo">Zoom to</label><span class="value" id="mZoomToVal">100%</span></div>
+          <input type="range" id="mZoomTo" min="100" max="180" step="1" value="100">
+        </div>
+        <div class="control">
           <div class="control-head"><label for="mDur">Duration</label><span class="value" id="mDurVal">3.0 s</span></div>
           <input type="range" id="mDur" min="0.5" max="12" step="0.1" value="3">
         </div>
         <div class="control">
-          <div class="control-head"><label for="mIn">Fade in</label><span class="value" id="mInVal">0.40 s</span></div>
-          <input type="range" id="mIn" min="0" max="3" step="0.05" value="0.4">
+          <div class="control-head"><label for="mIn">Fade in</label><span class="value" id="mInVal">0.00 s</span></div>
+          <input type="range" id="mIn" min="0" max="3" step="0.05" value="0">
         </div>
         <div class="control">
-          <div class="control-head"><label for="mOut">Fade out</label><span class="value" id="mOutVal">0.40 s</span></div>
-          <input type="range" id="mOut" min="0" max="3" step="0.05" value="0.4">
+          <div class="control-head"><label for="mOut">Fade out</label><span class="value" id="mOutVal">0.00 s</span></div>
+          <input type="range" id="mOut" min="0" max="3" step="0.05" value="0">
         </div>
         <div class="switch-row">
           <span>Return to the start</span>
           <div class="switch" id="pingSw" role="switch" aria-checked="false" tabindex="0"></div>
         </div>
+        <div class="sub-label">Motion blur</div>
+        <div class="chips" id="blurChips"></div>
         <div class="sub-label">Frame rate</div>
         <div class="chips" id="fpsChips"></div>
         <div class="sub-label">Video resolution</div>
@@ -1164,9 +1178,16 @@ function falloff(t) {
 }
 
 function factorFromQ(q) {
-  const a = state.splitAt / 100;
-  const f = Math.max(0.0001, state.feather / 100);
-  return falloff((a - q) / f + 0.5);
+  if (animP === null) {
+    const a = state.splitAt / 100;
+    const f = Math.max(0.0001, state.feather / 100);
+    return falloff((a - q) / f + 0.5);
+  }
+  // Animated: the wave passes along the axis and every dot eases in on its
+  // own clock, so neighbours overlap instead of switching together.
+  const stag = Math.max(0, Math.min(.95, motion.stagger / 100));
+  const span = Math.max(0.05, 1 - stag);
+  return easeFn()(Math.max(0, Math.min(1, (animP - q * stag) / span)));
 }
 
 function splitFactor(x, y) {
@@ -1635,10 +1656,17 @@ const FPS_OPTS = { 24:'24', 30:'30', 60:'60' };
 const VSCALES  = { 1:'1×', 2:'2×' };
 
 const motion = { move:'sweep', ease:'out', from:0, to:100, duration:3,
-                 fadeIn:.4, fadeOut:.4, ping:false, fps:30, vscale:1 };
+                 fadeIn:0, fadeOut:0, ping:false, fps:30, vscale:1,
+                 // Each dot runs its own build, offset along the sweep axis.
+                 // Without this every dot moves at once behind a hard line,
+                 // which reads as a wipe rather than a composition.
+                 stagger:62, blur:2, zoomFrom:100, zoomTo:100 };
+// Set while a frame is being composed; null means the still artwork.
+let animP = null;
 let motionBase = null;
 let playing = false;
 let baked = null;
+let blurBuf = null;
 
 // Cubic bezier solved by Newton-Raphson, so a curve behaves exactly as the
 // same four numbers would in CSS — including a spring that overshoots past 1.
@@ -1725,11 +1753,41 @@ function applyMotion(t) {
 }
 
 // A frame: re-mask, repaint, then dip toward paper at either end.
-function renderFrame(ctx, t, scale, cw, ch) {
+// One exposure of the frame. The global clock stays linear because the
+// easing already lives inside each dot; curving both would double-count.
+function exposeFrame(ctx, t, scale, cw, ch) {
+  animP = motion.from / 100 + (motion.to / 100 - motion.from / 100) * t;
   applyMotion(t);
   const resample = motion.move === 'rotate' || !baked || baked.sig !== bakeSignature();
   layers = resample ? buildLayers() : layersFromBake();
-  paintRegion(ctx, 0, 0, scale, cw, ch);
+
+  // A slow push in or out, the way a composition breathes.
+  const z = (motion.zoomFrom + (motion.zoomTo - motion.zoomFrom) * easeFn()(t)) / 100;
+  const vw = work.w / z, vh = work.h / z;
+  paintRegion(ctx, (work.w - vw) / 2, (work.h - vh) / 2, scale * z, cw, ch);
+}
+
+function renderFrame(ctx, t, scale, cw, ch) {
+  const k = Math.max(1, motion.blur);
+  if (k === 1) {
+    exposeFrame(ctx, t, scale, cw, ch);
+  } else {
+    // Real motion blur: several exposures across the frame's own interval,
+    // averaged by drawing each at 1/(i+1) so the result is a running mean.
+    if (!blurBuf) blurBuf = document.createElement('canvas');
+    if (blurBuf.width !== cw || blurBuf.height !== ch) { blurBuf.width = cw; blurBuf.height = ch; }
+    const bctx = blurBuf.getContext('2d');
+    const step = 1 / (motion.duration * motion.fps) / k;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = 1;
+    for (let i = 0; i < k; i++) {
+      exposeFrame(bctx, Math.max(0, Math.min(1, t + i * step)), scale, cw, ch);
+      ctx.globalAlpha = 1 / (i + 1);
+      ctx.drawImage(blurBuf, 0, 0);
+    }
+    ctx.globalAlpha = 1;
+  }
+  animP = null;
 
   const D = motion.duration, sec = t * D;
   let a = 1;
@@ -1782,6 +1840,9 @@ function bindMotionSlider(id, key, fmt) {
 bindMotionSlider('mFrom','from', function (v) { return v + '%'; });
 bindMotionSlider('mTo','to', function (v) { return v + '%'; });
 bindMotionSlider('mDur','duration', function (v) { return v.toFixed(1) + ' s'; });
+bindMotionSlider('mStagger','stagger', function (v) { return v + '%'; });
+bindMotionSlider('mZoomFrom','zoomFrom', function (v) { return v + '%'; });
+bindMotionSlider('mZoomTo','zoomTo', function (v) { return v + '%'; });
 bindMotionSlider('mIn','fadeIn', function (v) { return v.toFixed(2) + ' s'; });
 bindMotionSlider('mOut','fadeOut', function (v) { return v.toFixed(2) + ' s'; });
 
@@ -1789,6 +1850,8 @@ buildChips(el('moveChips'), Object.entries(MOVES), motion.move,
   function (k) { motion.move = k; updateRenderNote(); });
 buildChips(el('easeChips'), Object.keys(EASES).map(function (k) { return [k, EASES[k].label]; }), motion.ease,
   function (k) { motion.ease = k; });
+buildChips(el('blurChips'), [['1','Off'],['2','2×'],['3','3×'],['4','4×']], String(motion.blur),
+  function (k) { motion.blur = Number(k); });
 buildChips(el('fpsChips'), Object.keys(FPS_OPTS).map(function (k) { return [k, FPS_OPTS[k]]; }), String(motion.fps),
   function (k) { motion.fps = Number(k); updateRenderNote(); });
 buildChips(el('vscaleChips'), Object.keys(VSCALES).map(function (k) { return [k, VSCALES[k]]; }), String(motion.vscale),

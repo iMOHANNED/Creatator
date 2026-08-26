@@ -426,6 +426,223 @@ body[data-studio="video"]   [data-studio="imagery"] { display:none !important; }
   .dropzone { padding:1.9rem 1rem; }
 }
 
+/* ── Moulded shell ─────────────────────────────────────────────────── */
+/* One light from above. Everything raised carries a highlight on its top
+   edge and a shadow under it; everything recessed carries the reverse.
+   Active state is a lamp, not a filled button. */
+:root {
+  --shell-hi:#F3EFE6; --shell-lo:#D7D2C5; --shell-edge:rgba(92,86,72,.32);
+  --sink-hi:#E7E3D9;  --sink-lo:#C7C2B5;
+  --emboss:inset 0 1px 0 rgba(255,255,255,.95), inset 0 -1px 0 rgba(0,0,0,.09);
+  --lift:0 1px 1px rgba(64,58,46,.20), 0 6px 16px rgba(64,58,46,.16);
+  --press:inset 0 2px 5px rgba(64,58,46,.32), inset 0 -1px 0 rgba(255,255,255,.55);
+  --led:#E8622A;
+  --knurl:repeating-linear-gradient(90deg, rgba(0,0,0,.13) 0 1px, transparent 1px 3px);
+}
+[data-theme="dark"] {
+  --shell-hi:#3B3E44; --shell-lo:#24262B; --shell-edge:rgba(0,0,0,.62);
+  --sink-hi:#1D1F23;  --sink-lo:#2F3238;
+  --emboss:inset 0 1px 0 rgba(255,255,255,.11), inset 0 -1px 0 rgba(0,0,0,.55);
+  --lift:0 1px 2px rgba(0,0,0,.5), 0 8px 22px rgba(0,0,0,.44);
+  --press:inset 0 2px 6px rgba(0,0,0,.62), inset 0 -1px 0 rgba(255,255,255,.07);
+  --knurl:repeating-linear-gradient(90deg, rgba(0,0,0,.32) 0 1px, transparent 1px 3px);
+}
+
+/* The dock is a moulded panel, not a pane of glass. */
+.dock-group {
+  background:linear-gradient(180deg, var(--shell-hi), var(--shell-lo));
+  border:1px solid var(--shell-edge);
+  border-radius:15px;
+  box-shadow:var(--emboss), var(--lift);
+  backdrop-filter:none; -webkit-backdrop-filter:none;
+  padding:6px;
+}
+.dock-group::before { display:none; }
+.dock-label { color:var(--fg3); text-shadow:0 1px 0 rgba(255,255,255,.6); }
+[data-theme="dark"] .dock-label { text-shadow:none; }
+
+/* Keycaps with an indicator lamp, the way the reference marks its state. */
+.dock .chip {
+  position:relative;
+  padding:.5rem .8rem .5rem 1.55rem;
+  border-radius:10px;
+  color:var(--fg2);
+  background:linear-gradient(180deg, var(--shell-hi), var(--shell-lo));
+  border:1px solid var(--shell-edge);
+  box-shadow:var(--emboss), 0 1px 1px rgba(64,58,46,.16);
+}
+.dock .chip::before {
+  content:''; position:absolute; left:.58rem; top:50%; margin-top:-3.5px;
+  width:7px; height:7px; border-radius:50%;
+  background:radial-gradient(circle at 35% 30%, #b6b1a3, #8b8678);
+  box-shadow:inset 0 1px 1px rgba(0,0,0,.45);
+  transition:background .18s var(--ease), box-shadow .18s var(--ease);
+}
+[data-theme="dark"] .dock .chip::before {
+  background:radial-gradient(circle at 35% 30%, #55585e, #303338);
+}
+.dock .chip:hover { background:linear-gradient(180deg, #fff, var(--shell-lo)); color:var(--fg); }
+[data-theme="dark"] .dock .chip:hover { background:linear-gradient(180deg, #45484f, var(--shell-lo)); color:#fff; }
+.dock .chip.active,
+[data-theme="dark"] .dock .chip.active {
+  background:linear-gradient(180deg, var(--sink-lo), var(--sink-hi));
+  background-image:linear-gradient(180deg, var(--sink-lo), var(--sink-hi));
+  box-shadow:var(--press);
+  color:var(--fg);
+}
+.dock .chip.active::before {
+  background:radial-gradient(circle at 35% 30%, #ffa878, var(--led));
+  box-shadow:0 0 7px rgba(232,98,42,.85), inset 0 1px 1px rgba(255,255,255,.45);
+}
+
+/* Dock buttons are the same moulding. */
+.dock .btn {
+  background:linear-gradient(180deg, var(--shell-hi), var(--shell-lo));
+  border:1px solid var(--shell-edge);
+  border-radius:10px;
+  color:var(--fg2);
+  box-shadow:var(--emboss), 0 1px 1px rgba(64,58,46,.16);
+}
+.dock .btn:hover:not(:disabled) { color:var(--fg); background:linear-gradient(180deg,#fff,var(--shell-lo)); }
+[data-theme="dark"] .dock .btn:hover:not(:disabled) { background:linear-gradient(180deg,#45484f,var(--shell-lo)); color:#fff; }
+.dock .btn:active:not(:disabled) { box-shadow:var(--press); }
+.dock .btn-accent, [data-theme="dark"] .dock .btn-accent {
+  background:linear-gradient(180deg, #F08A54, var(--led));
+  background-image:linear-gradient(180deg, #F08A54, var(--led));
+  color:#2A0E03; border-color:rgba(120,48,14,.55);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.5), 0 1px 2px rgba(64,58,46,.3);
+}
+.dock .btn-accent:hover:not(:disabled) { filter:brightness(1.06); color:#2A0E03; }
+
+/* Recessed tracks with a knurled grip, like a real slider. */
+input[type=range] {
+  height:9px; border-radius:99px;
+  background:linear-gradient(180deg, var(--sink-lo), var(--sink-hi));
+  box-shadow:inset 0 1px 3px rgba(0,0,0,.34), inset 0 -1px 0 rgba(255,255,255,.5);
+}
+input[type=range]::-webkit-slider-thumb {
+  width:19px; height:19px; border-radius:7px; border:1px solid var(--shell-edge);
+  background:var(--knurl), linear-gradient(180deg, var(--shell-hi), var(--shell-lo));
+  box-shadow:var(--emboss), 0 1px 2px rgba(64,58,46,.32);
+}
+input[type=range]::-webkit-slider-thumb:hover { transform:none; filter:brightness(1.04); }
+input[type=range]::-moz-range-thumb {
+  width:17px; height:17px; border-radius:6px; border:1px solid var(--shell-edge);
+  background:var(--knurl), linear-gradient(180deg, var(--shell-hi), var(--shell-lo));
+}
+
+/* Switches: a sunk channel and a moulded thumb. */
+.switch {
+  background:linear-gradient(180deg, var(--sink-lo), var(--sink-hi));
+  box-shadow:inset 0 1px 3px rgba(0,0,0,.32), inset 0 -1px 0 rgba(255,255,255,.45);
+}
+.switch::after {
+  background:var(--knurl), linear-gradient(180deg, var(--shell-hi), var(--shell-lo));
+  border:1px solid var(--shell-edge);
+  box-shadow:var(--emboss), 0 1px 2px rgba(64,58,46,.3);
+}
+.switch.on, [data-theme="dark"] .switch.on {
+  background:linear-gradient(180deg, #C2521F, #E8722F);
+  background-image:linear-gradient(180deg, #C2521F, #E8722F);
+  box-shadow:inset 0 1px 3px rgba(80,30,6,.5);
+}
+
+/* Rail chips get the same moulding, at panel scale. */
+.chip {
+  background:linear-gradient(180deg, var(--shell-hi), var(--shell-lo));
+  border:1px solid var(--shell-edge);
+  border-radius:9px;
+  box-shadow:var(--emboss), 0 1px 1px rgba(64,58,46,.14);
+}
+.chip:hover { background:linear-gradient(180deg,#fff,var(--shell-lo)); }
+[data-theme="dark"] .chip:hover { background:linear-gradient(180deg,#45484f,var(--shell-lo)); }
+.chip.active, [data-theme="dark"] .chip.active {
+  background:linear-gradient(180deg, var(--sink-lo), var(--sink-hi));
+  background-image:linear-gradient(180deg, var(--sink-lo), var(--sink-hi));
+  box-shadow:var(--press);
+  color:var(--led); border-color:var(--shell-edge);
+}
+
+/* Cards are panels screwed to the same shell. */
+.card {
+  background:linear-gradient(180deg, var(--shell-hi), var(--shell-lo));
+  border:1px solid var(--shell-edge);
+  box-shadow:var(--emboss), var(--lift);
+}
+.card-label { text-shadow:0 1px 0 rgba(255,255,255,.7); }
+[data-theme="dark"] .card-label { text-shadow:none; }
+
+/* The stage is a screen set into the shell, behind a bezel. */
+.stage {
+  border:0;
+  border-radius:16px;
+  box-shadow:inset 0 3px 8px rgba(0,0,0,.30), inset 0 -1px 0 rgba(255,255,255,.4),
+             0 0 0 8px var(--shell-lo), 0 0 0 9px var(--shell-edge);
+  margin:6px;
+}
+.dropzone {
+  background:linear-gradient(180deg, var(--sink-lo), var(--sink-hi));
+  box-shadow:inset 0 2px 5px rgba(0,0,0,.22), inset 0 -1px 0 rgba(255,255,255,.5);
+  border-color:var(--shell-edge);
+}
+.file-chip {
+  background:linear-gradient(180deg, var(--sink-lo), var(--sink-hi));
+  box-shadow:inset 0 1px 3px rgba(0,0,0,.2);
+  border-color:var(--shell-edge);
+}
+.studio-switch {
+  background:linear-gradient(180deg, var(--sink-lo), var(--sink-hi));
+  box-shadow:inset 0 2px 4px rgba(0,0,0,.26), inset 0 -1px 0 rgba(255,255,255,.5);
+  border-color:var(--shell-edge);
+}
+.studio-tab[aria-selected="true"],
+[data-theme="dark"] .studio-tab[aria-selected="true"] {
+  background:linear-gradient(180deg, var(--shell-hi), var(--shell-lo));
+  background-image:linear-gradient(180deg, var(--shell-hi), var(--shell-lo));
+  color:var(--led);
+  border:1px solid var(--shell-edge);
+  box-shadow:var(--emboss), 0 1px 2px rgba(64,58,46,.24);
+}
+
+/* Every button on the shell is moulded, not just the ones in the dock. */
+.btn {
+  background:linear-gradient(180deg, var(--shell-hi), var(--shell-lo));
+  border:1px solid var(--shell-edge);
+  border-radius:10px;
+  box-shadow:var(--emboss), 0 1px 2px rgba(64,58,46,.18);
+}
+.btn:hover:not(:disabled) { background:linear-gradient(180deg,#fff,var(--shell-lo)); color:var(--fg); border-color:var(--shell-edge); }
+[data-theme="dark"] .btn:hover:not(:disabled) { background:linear-gradient(180deg,#45484f,var(--shell-lo)); color:#fff; }
+.btn:active:not(:disabled) { box-shadow:var(--press); }
+.btn-icon { border-radius:50%; }
+
+/* The wordmark is engraved into the shell rather than printed on it. */
+.logo .mark {
+  background:none; -webkit-background-clip:initial; background-clip:initial;
+  color:#4A453B;
+  text-shadow:0 1px 0 rgba(255,255,255,.85), 0 -1px 0 rgba(0,0,0,.22);
+}
+.logo .mark::after {
+  content:''; display:inline-block; width:7px; height:7px; border-radius:50%;
+  margin-left:.5rem; vertical-align:.06em;
+  background:radial-gradient(circle at 35% 30%, #ffa878, var(--led));
+  box-shadow:0 0 6px rgba(232,98,42,.7), inset 0 1px 1px rgba(255,255,255,.45);
+}
+[data-theme="dark"] .logo .mark {
+  color:#D8D3C6; text-shadow:0 1px 0 rgba(0,0,0,.6);
+}
+
+/* Dials: a knurled collar, a ticked face, one bright marker. */
+.knob .collar { stroke:var(--shell-edge); stroke-width:1.4; fill:none; }
+.knob .face { fill:url(#knobFace); stroke:var(--shell-edge); stroke-width:.8; }
+.knob .tick { stroke:rgba(80,74,62,.42); }
+[data-theme="dark"] .knob .tick { stroke:rgba(226,236,250,.30); }
+[data-theme="dark"] .knob .face { fill:url(#knobFaceDark); }
+.knob .k-name { fill:var(--fg3); }
+.knob .k-val { fill:var(--fg); }
+[data-theme="dark"] .knob .k-val { fill:#fff; }
+.knob .pivot { fill:url(#pivot); }
+
 /* ── Toast ────────────────────────────────────────────────────────── */
 .toast {
   position:fixed; bottom:6.4rem; left:50%; transform:translate(-50%,.6rem);
@@ -701,6 +918,26 @@ body[data-studio="video"]   [data-studio="imagery"] { display:none !important; }
   </div>
 </div>
 
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <radialGradient id="knobFace" cx="38%" cy="26%" r="82%">
+      <stop offset="0%" stop-color="#FBF8F1"/>
+      <stop offset="52%" stop-color="#E2DDD1"/>
+      <stop offset="100%" stop-color="#C3BDAE"/>
+    </radialGradient>
+    <radialGradient id="knobFaceDark" cx="38%" cy="26%" r="82%">
+      <stop offset="0%" stop-color="#4A4E55"/>
+      <stop offset="52%" stop-color="#33363C"/>
+      <stop offset="100%" stop-color="#1E2024"/>
+    </radialGradient>
+    <radialGradient id="pivot" cx="34%" cy="28%" r="70%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="45%" stop-color="#9AA0A8"/>
+      <stop offset="100%" stop-color="#3C4148"/>
+    </radialGradient>
+  </defs>
+</svg>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -938,11 +1175,12 @@ function buildKnobs() {
     wrap.dataset.k = k.id;
     wrap.innerHTML = `<svg viewBox="0 0 44 44" aria-hidden="true">
       ${ticks.join('')}
-      <circle class="collar" cx="22" cy="22" r="13.6"/>
+      <circle class="collar" cx="22" cy="22" r="13.7"/>
       <circle class="face" cx="22" cy="22" r="12.4"/>
       <line class="ind" x1="22" y1="13.2" x2="22" y2="10.2"/>
-      <text class="k-name" x="22" y="19">${k.name}</text>
-      <text class="k-val" x="22" y="28.6">0</text>
+      <text class="k-name" x="22" y="18.4">${k.name}</text>
+      <text class="k-val" x="22" y="28.2">0</text>
+      <circle class="pivot" cx="22" cy="22" r="1.15"/>
     </svg>`;
     host.appendChild(wrap);
     knobEls[k.id] = { wrap, k, ind: wrap.querySelector('.ind'),

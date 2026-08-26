@@ -227,6 +227,29 @@ input[type=color]::-webkit-color-swatch { border:none; border-radius:5px; }
 .split-only { display:none; }
 .split-only.show { display:block; }
 
+/* ── Studio switch ────────────────────────────────────────────────── */
+/* Two workspaces over one artwork: the look is built in one, the move in
+   the other, so neither panel carries the other's controls. */
+.studio-switch {
+  display:inline-flex; gap:2px; padding:3px; border-radius:999px;
+  background:var(--sunk); border:1px solid var(--line);
+}
+.studio-tab {
+  border:0; background:transparent; color:var(--fg2); cursor:pointer;
+  font-family:inherit; font-size:.68rem; font-weight:800; letter-spacing:.1em;
+  text-transform:uppercase; padding:.42rem .9rem; border-radius:999px;
+  transition:all .18s var(--ease); white-space:nowrap;
+}
+.studio-tab:hover { color:var(--fg); }
+.studio-tab[aria-selected="true"] { background:var(--accent); color:var(--on-accent); }
+[data-theme="dark"] .studio-tab[aria-selected="true"] {
+  background-image:linear-gradient(95deg,var(--brand1),var(--brand2) 55%,var(--brand3));
+  color:#04140d;
+}
+body[data-studio="imagery"] [data-studio="video"],
+body[data-studio="video"]   [data-studio="imagery"] { display:none !important; }
+@media (max-width:700px) { .studio-tab { padding:.42rem .7rem; font-size:.63rem; } }
+
 /* ── Preview ──────────────────────────────────────────────────────── */
 .preview-wrap { position:sticky; top:4.25rem; padding:.85rem; }
 .preview-head {
@@ -434,7 +457,7 @@ input[type=color]::-webkit-color-swatch { border:none; border-radius:5px; }
 <main>
   <div class="workspace">
     <div class="rail">
-      <div class="card">
+      <div class="card" data-studio="both">
         <div class="card-label">Source</div>
         <div class="dropzone" id="dropzone">
           <div class="icon" aria-hidden="true">
@@ -456,12 +479,12 @@ input[type=color]::-webkit-color-swatch { border:none; border-radius:5px; }
         <button class="btn btn-sm" id="sampleBtn" style="margin-top:.55rem;width:100%">Use a sample image</button>
       </div>
 
-      <div class="card">
+      <div class="card" data-studio="both">
         <div class="card-label">Presets</div>
         <div class="chips" id="presetChips"></div>
       </div>
 
-      <div class="card">
+      <div class="card" data-studio="imagery">
         <div class="card-label">Split</div>
         <div class="switch-row">
           <span>Keep half the photo</span>
@@ -489,7 +512,7 @@ input[type=color]::-webkit-color-swatch { border:none; border-radius:5px; }
         </div>
       </div>
 
-      <div class="card">
+      <div class="card" data-studio="video">
         <div class="card-label">Motion</div>
         <div class="sub-label" style="margin-top:0">Move</div>
         <div class="chips" id="moveChips"></div>
@@ -541,7 +564,7 @@ input[type=color]::-webkit-color-swatch { border:none; border-radius:5px; }
         <div id="renderNote" style="margin-top:.5rem;font-size:.7rem;color:var(--fg3);line-height:1.45"></div>
       </div>
 
-      <div class="card">
+      <div class="card" data-studio="imagery">
         <div class="card-label">Screen</div>
         <div class="control">
           <div class="control-head"><label for="cell">Dot spacing</label><span class="value" id="cellVal">8 px</span></div>
@@ -561,7 +584,7 @@ input[type=color]::-webkit-color-swatch { border:none; border-radius:5px; }
         </div>
       </div>
 
-      <div class="card">
+      <div class="card" data-studio="imagery">
         <div class="card-label">
           <span>Adjustments</span>
           <button class="btn btn-sm" id="autoBtn" title="Set levels from this image's histogram">Auto</button>
@@ -596,7 +619,7 @@ input[type=color]::-webkit-color-swatch { border:none; border-radius:5px; }
         </div>
       </div>
 
-      <div class="card">
+      <div class="card" data-studio="imagery">
         <div class="card-label">Ink &amp; paper</div>
         <div class="color-row" id="monoRow">
           <label for="inkColor">Ink</label>
@@ -616,7 +639,7 @@ input[type=color]::-webkit-color-swatch { border:none; border-radius:5px; }
         </div>
       </div>
 
-      <div class="card">
+      <div class="card" data-studio="imagery">
         <div class="card-label">Export</div>
         <div class="sub-label" style="margin-top:0">PNG resolution</div>
         <div class="chips" id="scaleChips"></div>
@@ -637,6 +660,7 @@ input[type=color]::-webkit-color-swatch { border:none; border-radius:5px; }
 
     <div class="card preview-wrap">
       <div class="preview-head">
+        <div class="studio-switch" id="studioSwitch" role="tablist"></div>
         <div class="preview-stats" id="stats">—</div>
         <div class="busy" id="busy">rendering</div>
       </div>
@@ -653,7 +677,7 @@ input[type=color]::-webkit-color-swatch { border:none; border-radius:5px; }
 </main>
 
 <div class="dock">
-  <div class="dock-group" id="knobGroup"></div>
+  <div class="dock-group" id="knobGroup" data-studio="imagery"></div>
   <div class="dock-group">
     <span class="dock-label">Ink</span>
     <div class="chips" id="modeChips"></div>
@@ -666,8 +690,11 @@ input[type=color]::-webkit-color-swatch { border:none; border-radius:5px; }
     <span class="dock-label">Frame</span>
     <div class="chips" id="aspectChips"></div>
   </div>
-  <div class="dock-group export">
-    <button class="btn btn-sm" id="videoBtn" disabled title="Render the move as a video">Video</button>
+  <div class="dock-group export" data-studio="video">
+    <button class="btn btn-sm" id="playBtn2" disabled>Preview</button>
+    <button class="btn btn-sm btn-accent" id="videoBtn" disabled title="Render the move as a video">Render video</button>
+  </div>
+  <div class="dock-group export" data-studio="imagery">
     <button class="btn btn-sm" id="copyBtn" disabled title="Copy the SVG so it can be pasted straight into Illustrator">Copy</button>
     <button class="btn btn-sm" id="pngBtn" disabled>PNG</button>
     <button class="btn btn-sm btn-accent" id="svgBtn" disabled>SVG</button>
@@ -1560,7 +1587,8 @@ function render() {
   updateStats();
   emptyState.classList.add('hidden');
   out.classList.remove('hidden');
-  svgBtn.disabled = pngBtn.disabled = el('copyBtn').disabled = el('videoBtn').disabled = false;
+  svgBtn.disabled = pngBtn.disabled = el('copyBtn').disabled = false;
+  el('videoBtn').disabled = el('playBtn2').disabled = false;
   updateRenderNote();
   busy.classList.remove('on');
 }
@@ -1680,6 +1708,29 @@ function downloadBlob(blob, name) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
   showToast('Saved ' + name);
 }
+
+/* ── Studios ───────────────────────────────────────────────────────── */
+const STUDIOS = [['imagery', 'Imagery'], ['video', 'Video']];
+function setStudio(id) {
+  document.body.dataset.studio = id;
+  [...el('studioSwitch').children].forEach(function (t) {
+    t.setAttribute('aria-selected', String(t.dataset.k === id));
+  });
+  // The rail is a two-column grid on tablets; hidden cards must not leave
+  // holes in it, so the count is refreshed after the swap.
+  if (state.img) requestAnimationFrame(function () { updateRenderNote(); });
+}
+STUDIOS.forEach(function (pair) {
+  const b = document.createElement('button');
+  b.className = 'studio-tab';
+  b.type = 'button';
+  b.dataset.k = pair[0];
+  b.textContent = pair[1];
+  b.setAttribute('role', 'tab');
+  b.addEventListener('click', function () { setStudio(pair[0]); });
+  el('studioSwitch').appendChild(b);
+});
+setStudio('imagery');
 
 /* ── Motion ────────────────────────────────────────────────────────── */
 const MOVES = { sweep:'Sweep', bloom:'Bloom', rotate:'Rotate', dissolve:'Dissolve' };
@@ -1909,17 +1960,19 @@ el('pingSw').addEventListener('click', function () {
   el('pingSw').setAttribute('aria-checked', String(motion.ping));
 });
 
-el('playBtn').addEventListener('click', function () {
+function togglePreview() {
   if (!state.img) { showToast('Load an image first.', true); return; }
   if (playing) { playing = false; return; }
   playing = true;
   el('playBtn').textContent = 'Stop';
+  el('playBtn2').textContent = 'Stop';
   prepareMotion();
   const started = performance.now();
   const ctx = out.getContext('2d');
   const step = function () {
     if (!playing) {
       el('playBtn').textContent = 'Preview the move';
+      el('playBtn2').textContent = 'Preview';
       restoreBase(); render();
       return;
     }
@@ -1930,7 +1983,9 @@ el('playBtn').addEventListener('click', function () {
     requestAnimationFrame(step);
   };
   requestAnimationFrame(step);
-});
+}
+el('playBtn').addEventListener('click', togglePreview);
+el('playBtn2').addEventListener('click', togglePreview);
 
 /* ── Video export ──────────────────────────────────────────────────── */
 function pickMime() {

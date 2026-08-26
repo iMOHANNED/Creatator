@@ -1095,6 +1095,7 @@ function buildWork() {
   ctx.filter = state.blur > 0 ? `blur(${state.blur}px)` : 'none';
   ctx.drawImage(img, sx, sy, sw, sh, 0, 0, w, h);
   ctx.filter = 'none';
+  photoBaseSig = '';
   work = { canvas, ctx, w, h, data: ctx.getImageData(0, 0, w, h).data,
            blur: state.blur, aspect: state.aspect, src: { sx, sy, sw, sh } };
 }
@@ -1367,43 +1368,81 @@ function shapePoints(d, angleDeg) {
 // scale, into a cw x ch canvas. The whole frame is that window at the origin,
 // so the preview and every export run one painter and cannot disagree about
 // what the artwork looks like.
-function paintRegion(ctx, ox, oy, scale, cw, ch) {
+let photoTile = null, photoBase = null, photoBaseSig = '', maskCanvas = null;
+function paintRegion(ctx, ox, oy, scale, cw, ch, opts) {
   const { w, h } = work;
   const spanX = cw / scale, spanY = ch / scale;
 
+  const alpha = opts && opts.alpha != null ? opts.alpha : 1;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.clearRect(0, 0, cw, ch);
+  ctx.globalAlpha = 1;
+  if (!(opts && opts.noClear)) ctx.clearRect(0, 0, cw, ch);
+  // Every mark of this exposure lands at the same weight, so stacking them
+  // is a running mean and needs no second canvas to average into.
+  ctx.globalAlpha = alpha;
   if (!state.transparent) { ctx.fillStyle = state.bg; ctx.fillRect(0, 0, cw, ch); }
 
   // The photograph is cut straight from the source at the window's own
   // resolution, so magnifying never resamples an already-scaled copy.
   if (state.split) {
     const src = work.src;
-    const tile = document.createElement('canvas');
-    tile.width = cw; tile.height = ch;
+    if (!photoTile) photoTile = document.createElement('canvas');
+    const tile = photoTile;
+    if (tile.width !== cw || tile.height !== ch) { tile.width = cw; tile.height = ch; }
     const tg = tile.getContext('2d');
-    tg.imageSmoothingEnabled = true; tg.imageSmoothingQuality = 'high';
-    tg.drawImage(state.img,
-      src.sx + (ox / w) * src.sw, src.sy + (oy / h) * src.sh,
-      (spanX / w) * src.sw, (spanY / h) * src.sh,
-      0, 0, cw, ch);
 
-    // Same falloff, expressed in this window's coordinates.
-    const X = p => (p - ox) * scale, Y = p => (p - oy) * scale;
+    // Rescaling the source is the costly half and only the mask changes
+    // between frames, so keep an unmasked copy for this exact window and
+    // re-cut it each time instead of re-sampling the original.
+    const sig = [ox, oy, scale, cw, ch, state.aspect, state.fileName].join(',');
+    if (!photoBase) photoBase = document.createElement('canvas');
+    if (photoBaseSig !== sig) {
+      if (photoBase.width !== cw || photoBase.height !== ch) { photoBase.width = cw; photoBase.height = ch; }
+      const pg = photoBase.getContext('2d');
+      pg.setTransform(1, 0, 0, 1, 0, 0);
+      pg.clearRect(0, 0, cw, ch);
+      pg.imageSmoothingEnabled = true; pg.imageSmoothingQuality = 'high';
+      pg.drawImage(state.img,
+        src.sx + (ox / w) * src.sw, src.sy + (oy / h) * src.sh,
+        (spanX / w) * src.sw, (spanY / h) * src.sh,
+        0, 0, cw, ch);
+      photoBaseSig = sig;
+    }
+    tg.setTransform(1, 0, 0, 1, 0, 0);
+    tg.globalCompositeOperation = 'copy';
+    tg.drawImage(photoBase, 0, 0);
+    tg.globalCompositeOperation = 'source-over';
+
+    // The mask is a smooth ramp, so it is drawn small and scaled up. Filling
+    // it at full size once per exposure was the most expensive thing in an
+    // animated frame, and at a quarter scale it is indistinguishable.
+    const mw = Math.max(32, Math.round(cw / 4)), mh = Math.max(32, Math.round(ch / 4));
+    if (!maskCanvas) maskCanvas = document.createElement('canvas');
+    if (maskCanvas.width !== mw || maskCanvas.height !== mh) { maskCanvas.width = mw; maskCanvas.height = mh; }
+    const mg = maskCanvas.getContext('2d');
+    const mf = mw / cw;
+    const X = p => (p - ox) * scale * mf, Y = p => (p - oy) * scale * mf;
     const d = state.splitDir;
     let grad;
-    if (d === 'top' || d === 'bottom') grad = tg.createLinearGradient(0, Y(0), 0, Y(h));
-    else if (d === 'diagonal') grad = tg.createLinearGradient(X(0), Y(0), X(w), Y(h));
+    if (d === 'top' || d === 'bottom') grad = mg.createLinearGradient(0, Y(0), 0, Y(h));
+    else if (d === 'diagonal') grad = mg.createLinearGradient(X(0), Y(0), X(w), Y(h));
     else if (d === 'radial' || d === 'burst')
-      grad = tg.createRadialGradient(X(w / 2), Y(h / 2), 0, X(w / 2), Y(h / 2), Math.hypot(w / 2, h / 2) * scale);
-    else grad = tg.createLinearGradient(X(0), 0, X(w), 0);
+      grad = mg.createRadialGradient(X(w / 2), Y(h / 2), 0, X(w / 2), Y(h / 2), Math.hypot(w / 2, h / 2) * scale * mf);
+    else grad = mg.createLinearGradient(X(0), 0, X(w), 0);
     for (let i = 0; i <= 64; i++) {
       const u = i / 64;
       grad.addColorStop(u, `rgba(0,0,0,${(1 - factorFromQ(q1D(u))).toFixed(4)})`);
     }
+    mg.setTransform(1, 0, 0, 1, 0, 0);
+    mg.globalCompositeOperation = 'copy';
+    mg.fillStyle = grad;
+    mg.fillRect(0, 0, mw, mh);
+    mg.globalCompositeOperation = 'source-over';
+
     tg.globalCompositeOperation = 'destination-in';
-    tg.fillStyle = grad;
-    tg.fillRect(0, 0, cw, ch);
+    tg.imageSmoothingEnabled = true; tg.imageSmoothingQuality = 'high';
+    tg.drawImage(maskCanvas, 0, 0, mw, mh, 0, 0, cw, ch);
+    tg.globalCompositeOperation = 'source-over';
     ctx.drawImage(tile, 0, 0);
   }
 
@@ -1438,6 +1477,7 @@ function paintRegion(ctx, ox, oy, scale, cw, ch) {
   }
   ctx.globalCompositeOperation = 'source-over';
   ctx.restore();
+  ctx.globalAlpha = 1;
 }
 
 function paint(ctx, scale) {
@@ -1653,20 +1693,19 @@ const EASES = {
   linear: { label:'Linear',   c:[0.00, 0.00, 1.00, 1.00] }
 };
 const FPS_OPTS = { 24:'24', 30:'30', 60:'60' };
-const VSCALES  = { 1:'1×', 2:'2×' };
+const VSCALES  = [[0.5,'½×'], [0.75,'¾×'], [1,'1×'], [2,'2×']];
 
 const motion = { move:'sweep', ease:'out', from:0, to:100, duration:3,
                  fadeIn:0, fadeOut:0, ping:false, fps:30, vscale:1,
                  // Each dot runs its own build, offset along the sweep axis.
                  // Without this every dot moves at once behind a hard line,
                  // which reads as a wipe rather than a composition.
-                 stagger:62, blur:2, zoomFrom:100, zoomTo:100 };
+                 stagger:62, blur:1, zoomFrom:100, zoomTo:100 };
 // Set while a frame is being composed; null means the still artwork.
 let animP = null;
 let motionBase = null;
 let playing = false;
 let baked = null;
-let blurBuf = null;
 
 // Cubic bezier solved by Newton-Raphson, so a curve behaves exactly as the
 // same four numbers would in CSS — including a spring that overshoots past 1.
@@ -1755,7 +1794,7 @@ function applyMotion(t) {
 // A frame: re-mask, repaint, then dip toward paper at either end.
 // One exposure of the frame. The global clock stays linear because the
 // easing already lives inside each dot; curving both would double-count.
-function exposeFrame(ctx, t, scale, cw, ch) {
+function exposeFrame(ctx, t, scale, cw, ch, opts) {
   animP = motion.from / 100 + (motion.to / 100 - motion.from / 100) * t;
   applyMotion(t);
   const resample = motion.move === 'rotate' || !baked || baked.sig !== bakeSignature();
@@ -1764,7 +1803,7 @@ function exposeFrame(ctx, t, scale, cw, ch) {
   // A slow push in or out, the way a composition breathes.
   const z = (motion.zoomFrom + (motion.zoomTo - motion.zoomFrom) * easeFn()(t)) / 100;
   const vw = work.w / z, vh = work.h / z;
-  paintRegion(ctx, (work.w - vw) / 2, (work.h - vh) / 2, scale * z, cw, ch);
+  paintRegion(ctx, (work.w - vw) / 2, (work.h - vh) / 2, scale * z, cw, ch, opts);
 }
 
 function renderFrame(ctx, t, scale, cw, ch) {
@@ -1774,16 +1813,10 @@ function renderFrame(ctx, t, scale, cw, ch) {
   } else {
     // Real motion blur: several exposures across the frame's own interval,
     // averaged by drawing each at 1/(i+1) so the result is a running mean.
-    if (!blurBuf) blurBuf = document.createElement('canvas');
-    if (blurBuf.width !== cw || blurBuf.height !== ch) { blurBuf.width = cw; blurBuf.height = ch; }
-    const bctx = blurBuf.getContext('2d');
     const step = 1 / (motion.duration * motion.fps) / k;
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.globalAlpha = 1;
     for (let i = 0; i < k; i++) {
-      exposeFrame(bctx, Math.max(0, Math.min(1, t + i * step)), scale, cw, ch);
-      ctx.globalAlpha = 1 / (i + 1);
-      ctx.drawImage(blurBuf, 0, 0);
+      exposeFrame(ctx, Math.max(0, Math.min(1, t + i * step)), scale, cw, ch,
+                  { alpha: 1 / (i + 1), noClear: i > 0 });
     }
     ctx.globalAlpha = 1;
   }
@@ -1815,15 +1848,28 @@ function prepareMotion() {
   if (!baked || baked.sig !== bakeSignature()) bakeGrid();
 }
 
+// What the last export actually managed, measured rather than predicted.
+let lastRun = null;
+
 function updateRenderNote() {
   const n = el('renderNote');
   if (!n) return;
-  const frames = Math.round(motion.duration * motion.fps);
   const px = work ? Math.round(work.w * motion.vscale) + '×' + Math.round(work.h * motion.vscale) : '—';
-  n.textContent = motion.duration.toFixed(1) + 's · ' + frames + ' frames · ' + px + ' · WebM. '
-    + (motion.move === 'rotate'
-        ? 'Rotating re-samples the image every frame, so it renders slowest.'
-        : 'Recording runs in real time.');
+  let txt = motion.duration.toFixed(1) + 's · ' + px + ' · WebM.';
+  if (motion.move === 'rotate') txt += ' Rotating re-samples the image every frame, so it renders slowest.';
+  if (motion.blur > 1) txt += ' Motion blur draws ' + motion.blur + ' exposures a frame.';
+  if (lastRun) {
+    // Frames drawn, not frames captured: the recorder samples the canvas on
+    // its own and keeps fewer than this. Reporting the draw rate as the
+    // video's frame rate would overstate it by about half.
+    txt += ' Last render drew ' + lastRun.frames + ' frames in ' + lastRun.secs + 's';
+    txt += lastRun.rate < motion.fps * 0.8
+      ? '. Coarser dots or a smaller video resolution buy back the most.'
+      : '.';
+  } else {
+    txt += ' Recording runs in real time, so a heavy screen lands fewer frames.';
+  }
+  n.textContent = txt;
 }
 
 /* ── Motion controls ───────────────────────────────────────────────── */
@@ -1854,7 +1900,7 @@ buildChips(el('blurChips'), [['1','Off'],['2','2×'],['3','3×'],['4','4×']], S
   function (k) { motion.blur = Number(k); });
 buildChips(el('fpsChips'), Object.keys(FPS_OPTS).map(function (k) { return [k, FPS_OPTS[k]]; }), String(motion.fps),
   function (k) { motion.fps = Number(k); updateRenderNote(); });
-buildChips(el('vscaleChips'), Object.keys(VSCALES).map(function (k) { return [k, VSCALES[k]]; }), String(motion.vscale),
+buildChips(el('vscaleChips'), VSCALES.map(function (v) { return [String(v[0]), v[1]]; }), String(motion.vscale),
   function (k) { motion.vscale = Number(k); updateRenderNote(); });
 
 el('pingSw').addEventListener('click', function () {
@@ -1926,10 +1972,12 @@ el('videoBtn').addEventListener('click', async function () {
   // heavy screen repeats a frame rather than stretching the clip.
   const startedAt = performance.now();
   const total = motion.duration * 1000;
+  let drawn = 0;
   await new Promise(function (res) {
     const tick = function () {
       const u = Math.min(1, (performance.now() - startedAt) / total);
       renderFrame(ctx, timeAt(u), scale, cw, chh);
+      drawn++;
       busy.textContent = 'recording ' + Math.round(u * 100) + '%';
       if (u >= 1) return res();
       requestAnimationFrame(tick);
@@ -1957,6 +2005,8 @@ el('videoBtn').addEventListener('click', async function () {
   busy.textContent = 'rendering';
   el('videoBtn').disabled = false;
   restoreBase();
+  const secs = (performance.now() - startedAt) / 1000;
+  lastRun = { rate: drawn / secs, frames: drawn, secs: secs.toFixed(1) };
   render();
   downloadBlob(new Blob(chunks, { type: mime }), baseName() + '-amplify.webm');
 });
